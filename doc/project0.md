@@ -1,4 +1,4 @@
-# Project 0
+# Project 0 (Team 3)
 
 ![Screenshot](project0.png)
 
