@@ -3,6 +3,7 @@
 #include <inttypes.h>
 #include <round.h>
 #include <stdio.h>
+#include "lib/kernel/list.h"
 #include "threads/interrupt.h"
 #include "threads/io.h"
 #include "threads/synch.h"
@@ -24,6 +25,9 @@ static int64_t ticks;
    Initialized by timer_calibrate(). */
 static unsigned loops_per_tick;
 
+/* List of waiting threads. */
+static struct list thread_list;
+
 static intr_handler_func timer_interrupt;
 static bool too_many_loops (unsigned loops);
 static void busy_wait (int64_t loops);
@@ -38,6 +42,8 @@ timer_init (void)
   /* 8254 input frequency divided by TIMER_FREQ, rounded to
      nearest. */
   uint16_t count = (1193180 + TIMER_FREQ / 2) / TIMER_FREQ;
+
+  list_init (&thread_list);
 
   outb (0x43, 0x34);    /* CW: counter 0, LSB then MSB, mode 2, binary. */
   outb (0x40, count & 0xff);
@@ -97,10 +103,16 @@ void
 timer_sleep (int64_t ticks) 
 {
   int64_t start = timer_ticks ();
+  enum intr_level old_level;
 
   ASSERT (intr_get_level () == INTR_ON);
   while (timer_elapsed (start) < ticks) 
-    thread_yield ();
+    {
+      old_level = intr_disable ();
+      list_push_back (&thread_list, &thread_current ()->elem);
+      thread_block ();
+      intr_set_level (old_level);
+    }
 }
 
 /* Suspends execution for approximately MS milliseconds. */
@@ -135,8 +147,16 @@ timer_print_stats (void)
 static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
+  struct list_elem *e;
+  struct thread *t;
   ticks++;
   thread_tick ();
+
+  while (!list_empty (&thread_list))
+    {
+      t = list_entry (list_pop_front (&thread_list), struct thread, elem);
+      thread_unblock (t);
+    }
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
