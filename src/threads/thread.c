@@ -61,7 +61,6 @@ bool thread_mlfqs;
 
 static void kernel_thread (thread_func *, void *aux);
 
-static list_less_func higher_priority;
 static void idle (void *aux UNUSED);
 static struct thread *running_thread (void);
 static struct thread *next_thread_to_run (void);
@@ -367,7 +366,7 @@ thread_get_recent_cpu (void)
    thread with its priority. Returns true if A has higher
    priority than B, or false if the priority of A is lower than
    or equal to it of B. */
-static bool
+bool
 higher_priority (const struct list_elem *a, const struct list_elem *b,
                  void *aux UNUSED)
 {
