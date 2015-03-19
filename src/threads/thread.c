@@ -61,6 +61,8 @@ bool thread_mlfqs;
 
 static void kernel_thread (thread_func *, void *aux);
 
+static bool higher_priority (const struct list_elem *a,
+                             const struct list_elem *b, void *aux UNUSED);
 static void idle (void *aux UNUSED);
 static struct thread *running_thread (void);
 static struct thread *next_thread_to_run (void);
@@ -229,14 +231,17 @@ thread_block (void)
 void
 thread_unblock (struct thread *t) 
 {
+  struct thread *curr = thread_current ();
   enum intr_level old_level;
 
   ASSERT (is_thread (t));
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
+  list_insert_ordered (&ready_list, &t->elem, &higher_priority, NULL);
   t->status = THREAD_READY;
+  if (!intr_context () && curr != idle_thread && t->priority > curr->priority)
+    thread_yield ();
   intr_set_level (old_level);
 }
 
@@ -304,7 +309,7 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (curr != idle_thread) 
-    list_push_back (&ready_list, &curr->elem);
+    list_insert_ordered (&ready_list, &curr->elem, &higher_priority, NULL);
   curr->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -315,6 +320,10 @@ void
 thread_set_priority (int new_priority) 
 {
   thread_current ()->priority = new_priority;
+  if (!list_empty (&ready_list)
+      && (list_entry (list_front (&ready_list), struct thread, elem)->priority
+          > new_priority))
+    thread_yield ();
 }
 
 /* Returns the current thread's priority. */
@@ -355,6 +364,18 @@ thread_get_recent_cpu (void)
   return 0;
 }
 
+/* Compares the value of two list elements A and B which contain
+   thread with its priority. Returns true if A has higher
+   priority than B, or false if the priority of A is lower than
+   or equal to it of B. */
+static bool
+higher_priority (const struct list_elem *a, const struct list_elem *b,
+                 void *aux UNUSED)
+{
+  return (list_entry (a, struct thread, elem)->priority
+          > list_entry (b, struct thread, elem)->priority);
+}
+
 /* Idle thread.  Executes when no other thread is ready to run.
 
    The idle thread is initially put on the ready list by
