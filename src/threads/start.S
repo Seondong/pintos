@@ -5,7 +5,7 @@
 #### image, and then using that as the entry point.
 
 .section .start
-	
+
 .globl start
 .func start
 	# Call main.

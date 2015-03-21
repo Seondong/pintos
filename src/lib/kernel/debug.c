@@ -22,7 +22,7 @@ debug_panic (const char *file, int line, const char *function,
   console_panic ();
 
   level++;
-  if (level == 1) 
+  if (level == 1)
     {
       printf ("Kernel PANIC at %s:%d in %s(): ", file, line, function);
 
@@ -36,7 +36,7 @@ debug_panic (const char *file, int line, const char *function,
   else if (level == 2)
     printf ("Kernel PANIC recursion at %s:%d in %s().\n",
             file, line, function);
-  else 
+  else
     {
       /* Don't print anything: that's probably why we recursed. */
     }

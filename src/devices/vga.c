@@ -41,7 +41,7 @@ init (void)
     {
       fb = ptov (0xb8000);
       find_cursor (&cx, &cy);
-      inited = true; 
+      inited = true;
     }
 }
 
@@ -55,8 +55,8 @@ vga_putc (int c)
   enum intr_level old_level = intr_disable ();
 
   init ();
-  
-  switch (c) 
+
+  switch (c)
     {
     case '\n':
       newline ();
@@ -70,7 +70,7 @@ vga_putc (int c)
       if (cx > 0)
         cx--;
       break;
-      
+
     case '\r':
       cx = 0;
       break;
@@ -80,7 +80,7 @@ vga_putc (int c)
       if (cx >= COL_CNT)
         newline ();
       break;
-      
+
     default:
       fb[cy][cx][0] = c;
       fb[cy][cx][1] = GRAY_ON_BLACK;
@@ -94,7 +94,7 @@ vga_putc (int c)
 
   intr_set_level (old_level);
 }
-
+
 /* Clears the screen and moves the cursor to the upper left. */
 static void
 cls (void)
@@ -110,7 +110,7 @@ cls (void)
 
 /* Clears row Y to spaces. */
 static void
-clear_row (size_t y) 
+clear_row (size_t y)
 {
   size_t x;
 
@@ -139,7 +139,7 @@ newline (void)
 
 /* Moves the hardware cursor to (cx,cy). */
 static void
-move_cursor (void) 
+move_cursor (void)
 {
   /* See [FREEVGA] under "Manipulating the Text-mode Cursor". */
   uint16_t cp = cx + COL_CNT * cy;
@@ -149,7 +149,7 @@ move_cursor (void)
 
 /* Reads the current hardware cursor position into (*X,*Y). */
 static void
-find_cursor (size_t *x, size_t *y) 
+find_cursor (size_t *x, size_t *y)
 {
   /* See [FREEVGA] under "Manipulating the Text-mode Cursor". */
   uint16_t cp;

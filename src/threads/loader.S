@@ -3,7 +3,7 @@
    below. */
 
 /*
- * Copyright (C) 1997 Massachusetts Institute of Technology 
+ * Copyright (C) 1997 Massachusetts Institute of Technology
  *
  * This software is being provided by the copyright holders under the
  * following license. By obtaining, using and/or copying this software,
@@ -39,7 +39,7 @@
  */
 
 #include "threads/loader.h"
-	
+
 #### Kernel loader.
 
 #### This code should be stored in the first sector of the hard disk.
@@ -49,7 +49,7 @@
 #### mode) so that all of memory can accessed, loads the kernel into
 #### memory, and jumps to the first byte of the kernel, where start.S
 #### is linked.
-	
+
 /* Flags in control register 0. */
 #define CR0_PE 0x00000001      /* Protection Enable. */
 #define CR0_EM 0x00000004      /* (Floating-point) Emulation. */
@@ -59,7 +59,7 @@
 
 .globl start
 start:
-	
+
 # Code runs in real mode, which is a 16-bit segment.
 	.code16
 
@@ -83,11 +83,11 @@ start:
 
 	movw %ax, %ss
 	movw $0x7c00, %sp
-	
+
 #### Enable A20.  Address line 20 is tied to low when the machine
 #### boots, which prevents addressing memory about 1 MB.  This code
 #### fixes it.
-	
+
 # Poll status register while busy.
 
 1:	inb $0x64, %al
@@ -115,7 +115,7 @@ start:
 #### This only works for memory sizes <= 65 MB, which should be fine
 #### for our purposes.  We cap memory at 64 MB because that's all we
 #### prepare page tables for, below.
-	
+
 	movb $0x88, %ah
 	int $0x15
 	jc panic
@@ -126,7 +126,7 @@ start:
 	mov $0x10000, %eax
 1:	shrl $2, %eax		# Total 4 kB pages
 	movl %eax, ram_pgs
-	
+
 #### Create temporary page directory and page table and set page
 #### directory base register.
 
@@ -142,7 +142,7 @@ start:
 # Also add identical PDEs starting at LOADER_PHYS_BASE.
 # See [IA32-v3a] section 3.7.6 "Page-Directory and Page-Table Entries"
 # for a description of the bits in %eax.
-	
+
 
 	movl $0x11007, %eax
 	movl $0x11, %ecx
@@ -171,7 +171,7 @@ start:
 
 	movl $0x10000, %eax
 	movl %eax, %cr3
-	
+
 #### Switch to protected mode.
 
 # Note that interrupts are still off.
@@ -188,12 +188,12 @@ start:
 #    WP (Write Protect): if unset, ring 0 code ignores
 #       write-protect bits in page tables (!).
 #    EM (Emulation): forces floating-point instructions to trap.
-#       We don't support floating point. 
-	
+#       We don't support floating point.
+
 	movl %cr0, %eax
 	orl $CR0_PE | CR0_PG | CR0_WP | CR0_EM, %eax
 	movl %eax, %cr0
-	
+
 # We're now in protected mode in a 16-bit segment.  The CPU still has
 # the real-mode code segment cached in %cs's segment descriptor.  We
 # need to reload %cs, and the easiest way is to use a far jump.
@@ -201,7 +201,7 @@ start:
 # jump to a 32-bit offset.
 
 	data32 ljmp $SEL_KCSEG, $1f + LOADER_PHYS_BASE
-	
+
 # We're now in protected mode in a 32-bit segment.
 
 	.code32
@@ -210,10 +210,10 @@ start:
 # point into our new GDT.
 
 1:	movw $SEL_KDSEG, %ax
-	movw %ax, %ds		
-	movw %ax, %es		
-	movw %ax, %fs		
-	movw %ax, %gs		
+	movw %ax, %ds
+	movw %ax, %es
+	movw %ax, %fs
+	movw %ax, %gs
 	movw %ax, %ss
 	movl $LOADER_PHYS_BASE + 0x30000, %esp
 
@@ -232,7 +232,7 @@ start:
 	movw $0x3f6, %dx
 	movb $0x02, %al
 	outb %al, %dx
-	
+
 read_sector:
 
 # Poll status register while controller busy.
@@ -305,7 +305,7 @@ gdt:
 	.quad 0x0000000000000000	# null seg
 	.quad 0x00cf9a000000ffff	# code seg
 	.quad 0x00cf92000000ffff        # data seg
-	
+
 gdtdesc:
 	.word	0x17			# sizeof (gdt) - 1
 	.long	gdt + LOADER_PHYS_BASE	# address gdt

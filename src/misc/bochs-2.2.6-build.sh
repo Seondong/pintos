@@ -27,9 +27,9 @@ if test "`uname -s`" = "SunOS"; then
 fi
 CFGOPTS="--with-x --with-x11 --with-term --with-nogui --prefix=$DSTDIR"
 mkdir plain &&
-        cd plain && 
-        ../configure $CFGOPTS --enable-gdb-stub && 
-        make && 
+        cd plain &&
+        ../configure $CFGOPTS --enable-gdb-stub &&
+        make &&
         make install &&
         cd ..
 mkdir with-dbg &&
