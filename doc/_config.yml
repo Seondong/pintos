@@ -1,0 +1,15 @@
+# Site settings
+title: Operating Systems and Lab (CS330)
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - github-markdown-css
+
+# Build settings
+markdown: redcarpet
+redcarpet:
+  extensions:
+    - no_intra_emphasis
+    - tables
+    - fenced_code_blocks
+    - smart

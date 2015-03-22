@@ -1,0 +1,17 @@
+---
+# Only the main Sass file needs front matter (the dashes are enough)
+---
+@charset "utf-8";
+
+.markdown-body {
+    min-width: 200px;
+    max-width: 790px;
+    margin: 0 auto;
+    padding: 30px;
+}
+
+// Import partials from `sass_dir` (defaults to `_sass`)
+@import
+    "github-markdown",
+    "syntax"
+;

@@ -1,4 +1,7 @@
-# Project 0 (Team 3)
+---
+layout: page
+title: "Project 0 (Team 3)"
+---
 
 ![Screenshot](project0.png)
 

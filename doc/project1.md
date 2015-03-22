@@ -1,4 +1,7 @@
-# Design document (Project 1: Threads)
+---
+layout: page
+title: "Design document (Project 1: Threads)"
+---
 
 Team 3
 

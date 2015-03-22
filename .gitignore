@@ -1,3 +1,7 @@
+/doc/.bundle/
+/doc/.sass-cache/
+/doc/.jekyll-metadata
+/doc/_site/
 /src/**/*/bochsout.txt
 /src/**/*/bochsrc.txt
 /src/**/*/build/
