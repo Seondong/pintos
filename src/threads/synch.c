@@ -291,6 +291,7 @@ void
 cond_wait (struct condition *cond, struct lock *lock)
 {
   struct semaphore_elem waiter;
+  struct semaphore *sema;
   struct list_elem *e;
   bool elem_inserted;
 
@@ -304,8 +305,7 @@ cond_wait (struct condition *cond, struct lock *lock)
   for (e = list_begin (&cond->waiters); e != list_end (&cond->waiters);
        e = list_next (e))
     {
-      struct semaphore *sema = &list_entry (e, struct semaphore_elem,
-                                            elem)->semaphore;
+      sema = &list_entry (e, struct semaphore_elem, elem)->semaphore;
       if (list_entry (list_front (&sema->waiters),
                       struct thread, elem)->priority
           < thread_current ()->priority)
