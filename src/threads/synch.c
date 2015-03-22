@@ -32,6 +32,9 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 
+static void lock_donate (const struct lock *lock);
+static void lock_donate_return (struct lock *lock);
+
 /* Initializes semaphore SEMA to VALUE.  A semaphore is a
    nonnegative integer along with two atomic operators for
    manipulating it:
@@ -117,8 +120,12 @@ sema_up (struct semaphore *sema)
   old_level = intr_disable ();
   sema->value++;
   if (!list_empty (&sema->waiters))
-    thread_unblock (list_entry (list_pop_front (&sema->waiters),
-                                struct thread, elem));
+    {
+      /* Priority can change while it is blocked. */
+      list_sort (&sema->waiters, higher_priority, NULL);
+      thread_unblock (list_entry (list_pop_front (&sema->waiters),
+                                  struct thread, elem));
+    }
   intr_set_level (old_level);
 }
 
@@ -194,12 +201,41 @@ lock_init (struct lock *lock)
 void
 lock_acquire (struct lock *lock)
 {
+  struct thread *curr;
+  struct semaphore *sema;
+  struct list_elem *e;
+  bool elem_inserted;
+
   ASSERT (lock != NULL);
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
+  curr = thread_current ();
+  curr->acquiring_lock = lock;
+  if (lock->holder != NULL)
+    lock_donate (lock);
+
   sema_down (&lock->semaphore);
-  lock->holder = thread_current ();
+  lock->holder = curr;
+  curr->acquiring_lock = NULL;
+
+  elem_inserted = false;
+  for (e = list_begin (&curr->locks); e != list_end (&curr->locks);
+       e = list_next (e))
+    {
+      sema = &list_entry (e, struct lock, elem)->semaphore;
+      if (!list_empty (&sema->waiters)
+          && (list_entry (list_front (&sema->waiters),
+                         struct thread, elem)->priority
+              < curr->priority))
+        {
+          list_insert (e, &lock->elem);
+          elem_inserted = true;
+          break;
+        }
+    }
+  if (!elem_inserted)
+    list_push_back (&curr->locks, &lock->elem);
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -234,8 +270,66 @@ lock_release (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
+  list_remove (&lock->elem);
+  lock_donate_return (lock);
+
   lock->holder = NULL;
   sema_up (&lock->semaphore);
+}
+
+/* Donate priority to the holder thread of LOCK.  This performs
+   nested donation. */
+static void
+lock_donate (const struct lock *lock)
+{
+  struct thread *holder = lock->holder;
+  struct thread *curr = thread_current ();
+
+  if (holder->priority < curr->priority)
+    {
+      if (holder->donation_level == 0)
+        holder->base_priority = holder->priority;
+      holder->priority = curr->priority;
+      holder->donation_level++;
+
+      /* Nested donation. */
+      if (holder->acquiring_lock != NULL)
+        lock_donate (holder->acquiring_lock);
+    }
+}
+
+/* Lower the donation level of the holder thread of LOCK. */
+static void
+lock_donate_return (struct lock *lock)
+{
+  struct thread *holder = lock->holder;
+  struct list *lock_waiters = &lock->semaphore.waiters;
+  struct semaphore *sema;
+  int donator_priority;
+
+  /* HOLDER can have multiple donations from other locks, so
+     check whether there are waiters of the LOCK. */
+  if (holder->donation_level > 0 && !list_empty (lock_waiters))
+    {
+      donator_priority = list_entry (list_front (lock_waiters),
+                                     struct thread, elem)->priority;
+      /* Check if this priority is given from current LOCK. */
+      if (holder->priority == donator_priority)
+        {
+          /* This is the last donation or there is no other lock
+             HOLDER has. */
+          if (holder->donation_level == 1 || list_empty (&holder->locks))
+            holder->priority = holder->base_priority;
+          else
+            {
+              sema = &list_entry (list_front (&holder->locks),
+                                  struct lock, elem)->semaphore;
+              holder->priority = list_entry (list_front (&sema->waiters),
+                                             struct thread, elem)->priority;
+            }
+          holder->donation_level--;
+        }
+    }
 }
 
 /* Returns true if the current thread holds LOCK, false

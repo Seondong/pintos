@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "threads/synch.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -99,6 +100,12 @@ struct thread
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
+
+    /* Owned by synch.c. */
+    struct list locks;                  /* List of acquiring locks. */
+    struct lock *acquiring_lock;        /* Lock to acquire. */
+    int donation_level;                 /* Level of priority donation. */
+    int base_priority;                  /* Priority before donation. */
   };
 
 /* If false (default), use round-robin scheduler.

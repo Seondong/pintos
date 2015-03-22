@@ -317,11 +317,19 @@ thread_yield (void)
 void
 thread_set_priority (int new_priority)
 {
-  thread_current ()->priority = new_priority;
-  if (!list_empty (&ready_list)
-      && (list_entry (list_front (&ready_list), struct thread, elem)->priority
-          > new_priority))
-    thread_yield ();
+  struct thread *curr = thread_current ();
+
+  if (curr->donation_level > 0)
+    curr->base_priority = new_priority;
+  else
+    {
+      curr->priority = new_priority;
+      if (!list_empty (&ready_list)
+          && (list_entry (list_front (&ready_list),
+                          struct thread, elem)->priority
+              > new_priority))
+        thread_yield ();
+    }
 }
 
 /* Returns the current thread's priority. */
@@ -459,6 +467,8 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
+  list_init (&t->locks);
+  t->donation_level = 0;
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
