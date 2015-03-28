@@ -1,7 +1,12 @@
+# Documentatio with Jekyll
 /doc/.bundle/
 /doc/.sass-cache/
 /doc/.jekyll-metadata
 /doc/_site/
+
+# Bochs
 /src/**/*/bochsout.txt
 /src/**/*/bochsrc.txt
-/src/**/*/build/
+
+# Build directory
+/src/threads/build/
