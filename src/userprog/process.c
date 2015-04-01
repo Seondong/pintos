@@ -211,9 +211,14 @@ load (const char *file_name, void (**eip) (void), void **esp)
   struct thread *t = thread_current ();
   struct Elf32_Ehdr ehdr;
   struct file *file = NULL;
+  char *cmd_copy = NULL;
+  int argc = 0;
+  char **argv = NULL;
+  char *token, *save_ptr;
+  uint8_t *stack_ptr;
   off_t file_ofs;
   bool success = false;
-  int i;
+  int size, i;
 
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
@@ -221,8 +226,22 @@ load (const char *file_name, void (**eip) (void), void **esp)
     goto done;
   process_activate ();
 
+  /* Break FILE_NAME into words. */
+  cmd_copy = palloc_get_page (0);
+  if (cmd_copy == NULL)
+    goto done;
+  argv = palloc_get_page (0);
+  if (argv == NULL)
+    goto done;
+  strlcpy (cmd_copy, file_name, PGSIZE);
+  for (token = strtok_r (cmd_copy, " ", &save_ptr); token != NULL;
+       token = strtok_r (NULL, " ", &save_ptr))
+    *(argv + argc++) = token;
+  /* argv[argc] is a null pointer. */
+  *(argv + argc) = NULL;
+
   /* Open executable file. */
-  file = filesys_open (file_name);
+  file = filesys_open (*argv);
   if (file == NULL)
     {
       printf ("load: %s: open failed\n", file_name);
@@ -304,14 +323,53 @@ load (const char *file_name, void (**eip) (void), void **esp)
   /* Set up stack. */
   if (!setup_stack (esp))
     goto done;
+  stack_ptr = *esp;
 
   /* Start address. */
   *eip = (void (*) (void)) ehdr.e_entry;
+
+  /* Copy the words of argv to stack. */
+  for (i = argc - 1; i >= 0; i--)
+    {
+      size = strlen (*(argv + i)) + 1;
+      stack_ptr -= size;
+      strlcpy (stack_ptr, *(argv + i), size);
+      *(argv + i) = stack_ptr;
+    }
+
+  /* Make ESP word-aligned. */
+  while ((uintptr_t) stack_ptr % 4)
+    *--stack_ptr = 0;
+
+  /* Push the elements of argv.  Note that argv[argc] is a null
+     pointer. */
+  for (i = argc; i >= 0; i--)
+    {
+      stack_ptr -= sizeof (char *);
+      *(char **) stack_ptr = *(argv + i);
+    }
+
+  /* Push argv. */
+  stack_ptr -= sizeof (char **);
+  *(char ***) stack_ptr = (char **) (stack_ptr + sizeof (char **));
+
+  /* Push argc. */
+  stack_ptr -= sizeof (int);
+  *(int *) stack_ptr = argc;
+
+  /* Push return address. */
+  stack_ptr -= sizeof (void *);
+  *(void **) stack_ptr = *eip;
+
+  /* Set ESP. */
+  *esp = stack_ptr;
 
   success = true;
 
  done:
   /* We arrive here whether the load is successful or not. */
+  palloc_free_page (cmd_copy);
+  palloc_free_page (argv);
   file_close (file);
   return success;
 }
