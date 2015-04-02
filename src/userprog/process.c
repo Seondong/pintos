@@ -357,9 +357,9 @@ load (const char *file_name, void (**eip) (void), void **esp)
   stack_ptr -= sizeof (int);
   *(int *) stack_ptr = argc;
 
-  /* Push return address. */
+  /* Push a fake return address. */
   stack_ptr -= sizeof (void *);
-  *(void **) stack_ptr = *eip;
+  *(void **) stack_ptr = NULL;
 
   /* Set ESP. */
   *esp = stack_ptr;
