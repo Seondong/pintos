@@ -87,9 +87,8 @@ syscall_handler (struct intr_frame *f UNUSED)
       break;
     case SYS_EXIT:
       status = *(int *) arg1;
-      sys_exit (status);
       f->eax = status;
-      thread_exit ();
+      sys_exit (status);
       break;
     case SYS_EXEC:
       file = *(char **) arg1;
@@ -172,6 +171,7 @@ sys_exit (int status)
   printf ("%s: exit(%d)\n", token, status);
   free (name_copy);
   free (fd_list.list);
+  thread_exit ();
 }
 
 static pid_t
