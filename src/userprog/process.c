@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <list.h>
 #include "userprog/gdt.h"
 #include "userprog/pagedir.h"
 #include "userprog/tss.h"
@@ -14,6 +15,7 @@
 #include "threads/flags.h"
 #include "threads/init.h"
 #include "threads/interrupt.h"
+#include "threads/malloc.h"
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
@@ -86,9 +88,30 @@ start_process (void *f_name)
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int
-process_wait (tid_t child_tid UNUSED)
+process_wait (tid_t child_tid)
 {
-  return -1;
+  struct thread *curr = thread_current ();
+  struct thread_child *child;
+  struct list_elem *e;
+  int status = -1;
+
+  for (e = list_begin (&curr->child_list); e != list_end (&curr->child_list);
+       e = list_next (e))
+    {
+      child = list_entry (e, struct thread_child, elem);
+      if (child->tid == child_tid)
+        {
+          if (!child->exited)
+            sema_down (&child->sema);
+
+          status = child->status;
+          list_remove (e);
+          free (child);
+          break;
+        }
+    }
+
+  return status;
 }
 
 /* Free the current process's resources. */
@@ -97,6 +120,21 @@ process_exit (void)
 {
   struct thread *curr = thread_current ();
   uint32_t *pd;
+  struct list_elem *e;
+  struct thread_child *child;
+
+  for (e = list_begin (&curr->parent->child_list);
+       e != list_end (&curr->parent->child_list); e = list_next (e))
+    {
+      child = list_entry (e, struct thread_child, elem);
+      if (child->tid == curr->tid)
+        {
+          child->exited = true;
+          child->status = curr->exit_status;
+          sema_up (&child->sema);
+          break;
+        }
+    }
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */

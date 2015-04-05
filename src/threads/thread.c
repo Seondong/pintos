@@ -7,6 +7,7 @@
 #include "threads/flags.h"
 #include "threads/interrupt.h"
 #include "threads/intr-stubs.h"
+#include "threads/malloc.h"
 #include "threads/palloc.h"
 #include "threads/switch.h"
 #include "threads/synch.h"
@@ -166,9 +167,14 @@ thread_create (const char *name, int priority,
                thread_func *function, void *aux)
 {
   struct thread *t;
+  struct thread *curr = thread_current ();
   struct kernel_thread_frame *kf;
   struct switch_entry_frame *ef;
   struct switch_threads_frame *sf;
+#ifdef USERPROG
+  struct thread_child *child = (struct thread_child *)
+    malloc (sizeof (struct thread_child));
+#endif
   tid_t tid;
 
   ASSERT (function != NULL);
@@ -195,6 +201,15 @@ thread_create (const char *name, int priority,
   /* Stack frame for switch_threads(). */
   sf = alloc_frame (t, sizeof *sf);
   sf->eip = switch_entry;
+
+#ifdef USERPROG
+  t->parent = thread_current ();
+  child->tid = tid;
+  child->exited = false;
+  sema_init (&child->sema, 0);
+
+  list_push_back (&curr->child_list, &child->elem);
+#endif
 
   /* Add to run queue. */
   thread_unblock (t);
@@ -469,6 +484,7 @@ init_thread (struct thread *t, const char *name, int priority)
 #ifdef USERPROG
   t->max_fd = 2;
   list_init (&t->fd_list);
+  list_init (&t->child_list);
 #endif
   t->magic = THREAD_MAGIC;
   list_init (&t->locks);

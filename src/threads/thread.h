@@ -89,6 +89,7 @@ struct thread
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
+    int exit_status;                    /* Exit status. */
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
@@ -98,6 +99,8 @@ struct thread
     uint32_t *pagedir;                  /* Page directory. */
     int max_fd;                         /* The largest file descriptor. */
     struct list fd_list;               /* List of file descriptors. */
+    struct thread *parent;              /* Parent thread. */
+    struct list child_list;             /* List of child threads. */
 #endif
 
     /* Owned by thread.c. */
@@ -115,6 +118,16 @@ struct thread_fd
   {
     int fd;                             /* File descriptor. */
     struct file *file;                  /* The file. */
+    struct list_elem elem;              /* List element. */
+  };
+
+/* Child thread. */
+struct thread_child
+  {
+    tid_t tid;                          /* Thread identifier. */
+    bool exited;                        /* Indicate whether it's exited. */
+    int status;                         /* Exit status code. */
+    struct semaphore sema;              /* Semaphore for wait. */
     struct list_elem elem;              /* List element. */
   };
 

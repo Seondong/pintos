@@ -188,6 +188,7 @@ sys_exit (int *eax, int status)
           free (tfd);
         }
     }
+  curr->exit_status = status;
   *eax = status;
   thread_exit ();
 }
