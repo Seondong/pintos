@@ -309,18 +309,21 @@ sys_close (int fd)
   desc_list_free (&fd_list, fd);
 }
 
+/* Returns the file pointer with given FD. */
 static struct file *
 desc_list_get (struct desc_list *list, int fd)
 {
   return *(list->list + fd - 2);
 }
 
+/* Set the file pointer at FD to NULL. */
 static void
 desc_list_free (struct desc_list *list, int fd)
 {
   *(list->list + fd - 2) = NULL;
 }
 
+/* Add FILE to fd_list and return its fd. */
 static int
 desc_list_insert (struct desc_list *list, struct file *file)
 {
