@@ -36,33 +36,14 @@ static void sys_seek (int *eax, int fd, unsigned position);
 static unsigned sys_tell (int *eax, int fd);
 static void sys_close (int *eax, int fd);
 
-/* List of fds. */
-struct desc_list
-  {
-    int tail;                   /* Current pointer. */
-    int size;                   /* Size of the list. */
-    struct file **list;         /* Container of file pointers. */
-  };
-
-/* List of fds in current process. */
-static struct desc_list fd_list;
-
-static struct file *desc_list_get (struct desc_list *list, int fd);
-static void desc_list_free (struct desc_list *list, int fd);
-static int desc_list_insert (struct desc_list *list, struct file *file);
+static struct file *thread_fd_get (int fd);
+static void thread_fd_free (int fd);
+static int thread_fd_insert (struct file *file);
 
 void
 syscall_init (void)
 {
-  int i;
-
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
-  fd_list.tail = 0;
-  fd_list.size = FD_LIST_SIZE;
-  fd_list.list = (struct file **)
-    malloc (fd_list.size * sizeof (struct file *));
-  for (i = 0; i < fd_list.size; i++)
-    *(fd_list.list + i) = NULL;
 }
 
 static void
@@ -173,18 +154,19 @@ sys_halt (int *eax UNUSED)
   printf ("SYS_HALT\n");
 #endif
 
-  free (fd_list.list);
   power_off ();
 }
 
 void
 sys_exit (int *eax, int status)
 {
+  struct thread *curr = thread_current ();
   const char *name = thread_name ();
   size_t size = strlen (name) + 1;
   char *name_copy = (char *) malloc (size * sizeof (char));
   char *token, *save_ptr;
-  int fd;
+  struct thread_fd *tfd;
+  struct list_elem *e;
 
 #if PRINT_DEBUG
   printf ("SYS_EXIT: status: %d\n", status);
@@ -194,10 +176,18 @@ sys_exit (int *eax, int status)
   token = strtok_r (name_copy, " ", &save_ptr);
   printf ("%s: exit(%d)\n", token, status);
   free (name_copy);
-  for (fd = 2; fd < fd_list.size + 2; fd++)
-    if (desc_list_get (&fd_list, fd) != NULL)
-      sys_close (eax, fd);
-  free (fd_list.list);
+  if (!list_empty (&curr->fd_list))
+    {
+      e = list_front (&curr->fd_list);
+      while (e != list_end (&curr->fd_list))
+        {
+          tfd = list_entry (e, struct thread_fd, elem);
+          e = list_remove (e);
+          if (tfd->file != NULL)
+            file_close (tfd->file);
+          free (tfd);
+        }
+    }
   *eax = status;
   thread_exit ();
 }
@@ -266,7 +256,7 @@ sys_open (int *eax, const char *file)
   f = filesys_open (file);
   if (f == NULL)
     return -1;
-  return desc_list_insert (&fd_list, f);
+  return thread_fd_insert (f);
 }
 
 static int
@@ -278,7 +268,7 @@ sys_filesize (int *eax, int fd)
   printf ("SYS_FILESIZE: fd: %d\n", fd);
 #endif
 
-  file = desc_list_get (&fd_list, fd);
+  file = thread_fd_get (fd);
   if (file == NULL)
     sys_exit (eax, -1);
 
@@ -309,7 +299,7 @@ sys_read (int *eax, int fd, void *buffer, unsigned size)
       return i;
     }
 
-  file = desc_list_get (&fd_list, fd);
+  file = thread_fd_get (fd);
   if (file == NULL)
     sys_exit (eax, -1);
 
@@ -334,7 +324,7 @@ sys_write (int *eax, int fd, const void *buffer, unsigned size)
       return size;
     }
 
-  file = desc_list_get (&fd_list, fd);
+  file = thread_fd_get (fd);
   if (file == NULL)
     sys_exit (eax, -1);
 
@@ -350,7 +340,7 @@ sys_seek (int *eax, int fd, unsigned position)
   printf ("SYS_SEEK: fd: %d, position: %u\n", fd, position);
 #endif
 
-  file = desc_list_get (&fd_list, fd);
+  file = thread_fd_get (fd);
   if (file == NULL)
     sys_exit (eax, -1);
 
@@ -366,7 +356,7 @@ sys_tell (int *eax, int fd)
   printf ("SYS_TELL: fd: %d\n", fd);
 #endif
 
-  file = desc_list_get (&fd_list, fd);
+  file = thread_fd_get (fd);
   if (file == NULL)
     sys_exit (eax, -1);
 
@@ -382,56 +372,66 @@ sys_close (int *eax, int fd)
   printf ("SYS_CLOSE: fd: %d\n", fd);
 #endif
 
-  file = desc_list_get (&fd_list, fd);
+  file = thread_fd_get (fd);
   if (file == NULL)
     sys_exit (eax, -1);
 
   file_close (file);
-  desc_list_free (&fd_list, fd);
+  thread_fd_free (fd);
 }
 
 /* Returns the file pointer with given FD. */
 static struct file *
-desc_list_get (struct desc_list *list, int fd)
+thread_fd_get (int fd)
 {
-  if (fd < 2 || fd >= list->size)
+  struct thread *curr = thread_current ();
+  struct thread_fd *tfd;
+  struct list_elem *e;
+
+  if (fd < 2 || fd >= curr->max_fd)
     return NULL;
-  return *(list->list + fd - 2);
+  for (e = list_begin (&curr->fd_list); e != list_end (&curr->fd_list);
+       e = list_next (e))
+    {
+      tfd = list_entry (e, struct thread_fd, elem);
+      if (tfd->fd == fd)
+        return tfd->file;
+    }
+  return NULL;
 }
 
 /* Set the file pointer at FD to NULL. */
 static void
-desc_list_free (struct desc_list *list, int fd)
+thread_fd_free (int fd)
 {
-  *(list->list + fd - 2) = NULL;
-}
+  struct thread *curr = thread_current ();
+  struct thread_fd *tfd;
+  struct list_elem *e;
 
-/* Add FILE to fd_list and return its fd. */
-static int
-desc_list_insert (struct desc_list *list, struct file *file)
-{
-  int fd;
-  int tail, size;
-  int i;
-
-  *(list->list + list->tail) = file;
-  fd = list->tail + 2;
-  tail = list->tail;
-  size = list->size;
-  for (i = 0; i < size; i++)
+  for (e = list_begin (&curr->fd_list); e != list_end (&curr->fd_list);
+       e = list_next (e))
     {
-      tail = (tail + 1) % size;
-      if (*(list->list + tail) == NULL)
+      tfd = list_entry (e, struct thread_fd, elem);
+      if (tfd->fd == fd)
         {
-          list->tail = tail;
-          return fd;
+          list_remove (e);
+          free (tfd);
+          break;
         }
     }
-  list->tail = list->size;
-  list->size <<= 1;
-  list->list = (struct file **)
-    realloc (&list->list, list->size * sizeof (struct file *));
-  for (i = list->tail; i < list->size; i++)
-    *(list->list + i) = NULL;
-  return fd;
+}
+
+/* Add FILE to fd_list of current thread and return its fd. */
+static int
+thread_fd_insert (struct file *file)
+{
+  struct thread *curr = thread_current ();
+  struct thread_fd *tfd = (struct thread_fd *)
+    malloc (sizeof (struct thread_fd));
+
+  tfd->fd = curr->max_fd++;
+  tfd->file = file;
+  list_push_back (&curr->fd_list, &tfd->elem);
+
+  return tfd->fd;
 }

@@ -96,6 +96,8 @@ struct thread
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
+    int max_fd;                         /* The largest file descriptor. */
+    struct list fd_list;               /* List of file descriptors. */
 #endif
 
     /* Owned by thread.c. */
@@ -106,6 +108,14 @@ struct thread
     struct lock *acquiring_lock;        /* Lock to acquire. */
     int donation_level;                 /* Level of priority donation. */
     int base_priority;                  /* Priority before donation. */
+  };
+
+/* File descriptor of thread. */
+struct thread_fd
+  {
+    int fd;                             /* File descriptor. */
+    struct file *file;                  /* The file. */
+    struct list_elem elem;              /* List element. */
   };
 
 /* If false (default), use round-robin scheduler.
