@@ -209,7 +209,7 @@ sys_create (int *eax, const char *file, unsigned initial_size)
   printf ("SYS_CREATE: file: %s, initial_size: %u\n", file, initial_size);
 #endif
 
-  if (!is_user_vaddr (file))
+  if (file == NULL || !is_user_vaddr (file))
     sys_exit (eax, -1);
 
   return filesys_create (file, initial_size);
@@ -222,7 +222,7 @@ sys_remove (int *eax, const char *file)
   printf ("SYS_REMOVE: file: %s\n", file);
 #endif
 
-  if (!is_user_vaddr (file))
+  if (file == NULL || !is_user_vaddr (file))
     sys_exit (eax, -1);
 
   return filesys_remove (file);
@@ -237,7 +237,7 @@ sys_open (int *eax, const char *file)
   printf ("SYS_OPEN: file: %s\n", file);
 #endif
 
-  if (!is_user_vaddr (file))
+  if (file == NULL || !is_user_vaddr (file))
     sys_exit (eax, -1);
 
   f = filesys_open (file);
