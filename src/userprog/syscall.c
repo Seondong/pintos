@@ -66,7 +66,7 @@ syscall_init (void)
 }
 
 static void
-syscall_handler (struct intr_frame *f UNUSED)
+syscall_handler (struct intr_frame *f)
 {
   int syscall_nr = *(int *) f->esp;
   void *arg1 = (int *) f->esp + 1;
