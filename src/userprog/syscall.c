@@ -86,56 +86,80 @@ syscall_handler (struct intr_frame *f)
       sys_halt (&f->eax);
       break;
     case SYS_EXIT:
+      if (!is_user_vaddr (arg1))
+        sys_exit (&f->eax, -1);
       status = *(int *) arg1;
       sys_exit (&f->eax, status);
       break;
     case SYS_EXEC:
+      if (!is_user_vaddr (arg1))
+        sys_exit (&f->eax, -1);
       file = *(char **) arg1;
       f->eax = sys_exec (&f->eax, file);
       break;
     case SYS_WAIT:
+      if (!is_user_vaddr (arg1))
+        sys_exit (&f->eax, -1);
       pid = *(pid_t *) arg1;
       f->eax = sys_wait (&f->eax, pid);
       break;
     case SYS_CREATE:
+      if (!is_user_vaddr (arg2))
+        sys_exit (&f->eax, -1);
       file = *(char **) arg1;
       initial_size = *(unsigned *) arg2;
       f->eax = sys_create (&f->eax, file, initial_size);
       break;
     case SYS_REMOVE:
+      if (!is_user_vaddr (arg1))
+        sys_exit (&f->eax, -1);
       file = *(char **) arg1;
       f->eax = sys_remove (&f->eax, file);
       break;
     case SYS_OPEN:
+      if (!is_user_vaddr (arg1))
+        sys_exit (&f->eax, -1);
       file = *(char **) arg1;
       f->eax = sys_open (&f->eax, file);
       break;
     case SYS_FILESIZE:
+      if (!is_user_vaddr (arg1))
+        sys_exit (&f->eax, -1);
       fd = *(int *) arg1;
       f->eax = sys_filesize (&f->eax, fd);
       break;
     case SYS_READ:
+      if (!is_user_vaddr (arg3))
+        sys_exit (&f->eax, -1);
       fd = *(int *) arg1;
       rbuffer = *(void **) arg2;
       size = *(unsigned *) arg3;
       f->eax = sys_read (&f->eax, fd, rbuffer, size);
       break;
     case SYS_WRITE:
+      if (!is_user_vaddr (arg3))
+        sys_exit (&f->eax, -1);
       fd = *(int *) arg1;
       wbuffer = *(void **) arg2;
       size = *(unsigned *) arg3;
       f->eax = sys_write (&f->eax, fd, wbuffer, size);
       break;
     case SYS_SEEK:
+      if (!is_user_vaddr (arg2))
+        sys_exit (&f->eax, -1);
       fd = *(int *) arg1;
       position = *(unsigned *) arg2;
       sys_seek (&f->eax, fd, position);
       break;
     case SYS_TELL:
+      if (!is_user_vaddr (arg1))
+        sys_exit (&f->eax, -1);
       fd = *(int *) arg1;
       f->eax = sys_tell (&f->eax, fd);
       break;
     case SYS_CLOSE:
+      if (!is_user_vaddr (arg1))
+        sys_exit (&f->eax, -1);
       fd = *(int *) arg1;
       sys_close (&f->eax, fd);
       break;
