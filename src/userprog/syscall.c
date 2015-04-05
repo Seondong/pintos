@@ -9,6 +9,7 @@
 #include "threads/interrupt.h"
 #include "threads/malloc.h"
 #include "threads/thread.h"
+#include "threads/vaddr.h"
 #include "devices/input.h"
 #include "filesys/filesys.h"
 #include "filesys/file.h"
@@ -22,19 +23,19 @@
 #define FD_LIST_SIZE 128
 
 static void syscall_handler (struct intr_frame *);
-static void sys_halt (void);
-static void sys_exit (int status);
-static pid_t sys_exec (const char *file);
-static int sys_wait (pid_t pid);
-static bool sys_create (const char *file, unsigned initial_size);
-static bool sys_remove (const char *file);
-static int sys_open (const char *file);
-static int sys_filesize (int fd);
-static int sys_read (int fd, void *buffer, unsigned size);
-static int sys_write (int fd, const void *buffer, unsigned size);
-static void sys_seek (int fd, unsigned position);
-static unsigned sys_tell (int fd);
-static void sys_close (int fd);
+static void sys_halt (int *eax);
+static void sys_exit (int *eax, int status);
+static pid_t sys_exec (int *eax, const char *file);
+static int sys_wait (int *eax, pid_t pid);
+static bool sys_create (int *eax, const char *file, unsigned initial_size);
+static bool sys_remove (int *eax, const char *file);
+static int sys_open (int *eax, const char *file);
+static int sys_filesize (int *eax, int fd);
+static int sys_read (int *eax, int fd, void *buffer, unsigned size);
+static int sys_write (int *eax, int fd, const void *buffer, unsigned size);
+static void sys_seek (int *eax, int fd, unsigned position);
+static unsigned sys_tell (int *eax, int fd);
+static void sys_close (int *eax, int fd);
 
 /* List of fds. */
 struct desc_list
@@ -83,68 +84,67 @@ syscall_handler (struct intr_frame *f)
   switch (syscall_nr)
     {
     case SYS_HALT:
-      sys_halt ();
+      sys_halt (&f->eax);
       break;
     case SYS_EXIT:
       status = *(int *) arg1;
-      f->eax = status;
-      sys_exit (status);
+      sys_exit (&f->eax, status);
       break;
     case SYS_EXEC:
       file = *(char **) arg1;
-      f->eax = sys_exec (file);
+      f->eax = sys_exec (&f->eax, file);
       break;
     case SYS_WAIT:
       pid = *(pid_t *) arg1;
-      f->eax = sys_wait (pid);
+      f->eax = sys_wait (&f->eax, pid);
       break;
     case SYS_CREATE:
       file = *(char **) arg1;
       initial_size = *(unsigned *) arg2;
-      f->eax = sys_create (file, initial_size);
+      f->eax = sys_create (&f->eax, file, initial_size);
       break;
     case SYS_REMOVE:
       file = *(char **) arg1;
-      f->eax = sys_remove (file);
+      f->eax = sys_remove (&f->eax, file);
       break;
     case SYS_OPEN:
       file = *(char **) arg1;
-      f->eax = sys_open (file);
+      f->eax = sys_open (&f->eax, file);
       break;
     case SYS_FILESIZE:
       fd = *(int *) arg1;
-      f->eax = sys_filesize (fd);
+      f->eax = sys_filesize (&f->eax, fd);
       break;
     case SYS_READ:
       fd = *(int *) arg1;
       rbuffer = *(void **) arg2;
       size = *(unsigned *) arg3;
-      f->eax = sys_read (fd, rbuffer, size);
+      f->eax = sys_read (&f->eax, fd, rbuffer, size);
       break;
     case SYS_WRITE:
       fd = *(int *) arg1;
       wbuffer = *(void **) arg2;
       size = *(unsigned *) arg3;
-      f->eax = sys_write (fd, wbuffer, size);
+      f->eax = sys_write (&f->eax, fd, wbuffer, size);
       break;
     case SYS_SEEK:
       fd = *(int *) arg1;
       position = *(unsigned *) arg2;
-      sys_seek (fd, position);
+      sys_seek (&f->eax, fd, position);
       break;
     case SYS_TELL:
       fd = *(int *) arg1;
-      f->eax = sys_tell (fd);
+      f->eax = sys_tell (&f->eax, fd);
       break;
     case SYS_CLOSE:
       fd = *(int *) arg1;
-      sys_close (fd);
+      sys_close (&f->eax, fd);
       break;
     }
 }
 
 static void
-sys_halt (void)
+sys_halt (int *eax UNUSED)
 {
 #if PRINT_DEBUG
   printf ("SYS_HALT\n");
@@ -155,7 +155,7 @@ sys_halt (void)
 }
 
 static void
-sys_exit (int status)
+sys_exit (int *eax, int status)
 {
   const char *name = thread_name ();
   size_t size = strlen (name) + 1;
@@ -171,21 +171,25 @@ sys_exit (int status)
   printf ("%s: exit(%d)\n", token, status);
   free (name_copy);
   free (fd_list.list);
+  *eax = status;
   thread_exit ();
 }
 
 static pid_t
-sys_exec (const char *file)
+sys_exec (int *eax, const char *file)
 {
 #if PRINT_DEBUG
   printf ("SYS_EXEC: file: %s\n", file);
 #endif
 
+  if (!is_user_vaddr (file))
+    sys_exit (eax, -1);
+
   return process_execute (file);
 }
 
 static int
-sys_wait (pid_t pid)
+sys_wait (int *eax UNUSED, pid_t pid)
 {
 #if PRINT_DEBUG
   printf ("SYS_WAIT: pid: %d\n", pid);
@@ -195,33 +199,42 @@ sys_wait (pid_t pid)
 }
 
 static bool
-sys_create (const char *file, unsigned initial_size)
+sys_create (int *eax, const char *file, unsigned initial_size)
 {
 #if PRINT_DEBUG
   printf ("SYS_CREATE: file: %s, initial_size: %u\n", file, initial_size);
 #endif
 
+  if (!is_user_vaddr (file))
+    sys_exit (eax, -1);
+
   return filesys_create (file, initial_size);
 }
 
 static bool
-sys_remove (const char *file)
+sys_remove (int *eax, const char *file)
 {
 #if PRINT_DEBUG
   printf ("SYS_REMOVE: file: %s\n", file);
 #endif
 
+  if (!is_user_vaddr (file))
+    sys_exit (eax, -1);
+
   return filesys_remove (file);
 }
 
 static int
-sys_open (const char *file)
+sys_open (int *eax, const char *file)
 {
   struct file *f;
 
 #if PRINT_DEBUG
   printf ("SYS_OPEN: file: %s\n", file);
 #endif
+
+  if (!is_user_vaddr (file))
+    sys_exit (eax, -1);
 
   f = filesys_open (file);
   if (f == NULL)
@@ -230,23 +243,33 @@ sys_open (const char *file)
 }
 
 static int
-sys_filesize (int fd)
+sys_filesize (int *eax, int fd)
 {
+  struct file *file;
+
 #if PRINT_DEBUG
   printf ("SYS_FILESIZE: fd: %d\n", fd);
 #endif
 
-  return file_length (desc_list_get (&fd_list, fd));
+  file = desc_list_get (&fd_list, fd);
+  if (file == NULL)
+    sys_exit (eax, -1);
+
+  return file_length (file);
 }
 
 static int
-sys_read (int fd, void *buffer, unsigned size)
+sys_read (int *eax, int fd, void *buffer, unsigned size)
 {
+  struct file *file;
   unsigned i;
 
 #if PRINT_DEBUG
   printf ("SYS_READ: fd: %d, buffer: %p, size: %u\n", fd, buffer, size);
 #endif
+
+  if (!is_user_vaddr (buffer))
+    sys_exit (eax, -1);
 
   if (fd == 0)
     {
@@ -258,54 +281,85 @@ sys_read (int fd, void *buffer, unsigned size)
         }
       return i;
     }
-  else
-    return file_read (desc_list_get (&fd_list, fd), buffer, size);
+
+  file = desc_list_get (&fd_list, fd);
+  if (file == NULL)
+    sys_exit (eax, -1);
+
+  return file_read (file, buffer, size);
 }
 
 static int
-sys_write (int fd, const void *buffer, unsigned size)
+sys_write (int *eax, int fd, const void *buffer, unsigned size)
 {
+  struct file *file;
+
 #if PRINT_DEBUG
   printf ("SYS_WRITE: fd: %d, buffer: %p, size: %u\n", fd, buffer, size);
 #endif
+
+  if (!is_user_vaddr (buffer))
+    sys_exit (eax, -1);
 
   if (fd == 1)
     {
       putbuf (buffer, size);
       return size;
     }
-  else
-    return file_write (desc_list_get (&fd_list, fd), buffer, size);
+
+  file = desc_list_get (&fd_list, fd);
+  if (file == NULL)
+    sys_exit (eax, -1);
+
+  return file_write (file, buffer, size);
 }
 
 static void
-sys_seek (int fd, unsigned position)
+sys_seek (int *eax, int fd, unsigned position)
 {
+  struct file *file;
+
 #if PRINT_DEBUG
   printf ("SYS_SEEK: fd: %d, position: %u\n", fd, position);
 #endif
 
-  file_seek (desc_list_get (&fd_list, fd), position);
+  file = desc_list_get (&fd_list, fd);
+  if (file == NULL)
+    sys_exit (eax, -1);
+
+  file_seek (file, position);
 }
 
 static unsigned
-sys_tell (int fd)
+sys_tell (int *eax, int fd)
 {
+  struct file *file;
+
 #if PRINT_DEBUG
   printf ("SYS_TELL: fd: %d\n", fd);
 #endif
 
-  return file_tell (desc_list_get (&fd_list, fd));
+  file = desc_list_get (&fd_list, fd);
+  if (file == NULL)
+    sys_exit (eax, -1);
+
+  return file_tell (file);
 }
 
 static void
-sys_close (int fd)
+sys_close (int *eax, int fd)
 {
+  struct file *file;
+
 #if PRINT_DEBUG
   printf ("SYS_CLOSE: fd: %d\n", fd);
 #endif
 
-  file_close (desc_list_get (&fd_list, fd));
+  file = desc_list_get (&fd_list, fd);
+  if (file == NULL)
+    sys_exit (eax, -1);
+
+  file_close (file);
   desc_list_free (&fd_list, fd);
 }
 
@@ -313,6 +367,8 @@ sys_close (int fd)
 static struct file *
 desc_list_get (struct desc_list *list, int fd)
 {
+  if (fd < 2 || fd >= list->size)
+    return NULL;
   return *(list->list + fd - 2);
 }
 
