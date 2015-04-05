@@ -24,7 +24,6 @@
 
 static void syscall_handler (struct intr_frame *);
 static void sys_halt (int *eax);
-static void sys_exit (int *eax, int status);
 static pid_t sys_exec (int *eax, const char *file);
 static int sys_wait (int *eax, pid_t pid);
 static bool sys_create (int *eax, const char *file, unsigned initial_size);
@@ -154,7 +153,7 @@ sys_halt (int *eax UNUSED)
   power_off ();
 }
 
-static void
+void
 sys_exit (int *eax, int status)
 {
   const char *name = thread_name ();
