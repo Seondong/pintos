@@ -161,6 +161,7 @@ sys_exit (int *eax, int status)
   size_t size = strlen (name) + 1;
   char *name_copy = (char *) malloc (size * sizeof (char));
   char *token, *save_ptr;
+  int fd;
 
 #if PRINT_DEBUG
   printf ("SYS_EXIT: status: %d\n", status);
@@ -170,6 +171,9 @@ sys_exit (int *eax, int status)
   token = strtok_r (name_copy, " ", &save_ptr);
   printf ("%s: exit(%d)\n", token, status);
   free (name_copy);
+  for (fd = 2; fd < fd_list.size + 2; fd++)
+    if (desc_list_get (&fd_list, fd) != NULL)
+      sys_close (eax, fd);
   free (fd_list.list);
   *eax = status;
   thread_exit ();
