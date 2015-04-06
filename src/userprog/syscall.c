@@ -206,6 +206,9 @@ sys_exit (int *eax, int status)
 static pid_t
 sys_exec (int *eax, const char *file)
 {
+  pid_t pid;
+  struct thread *curr = thread_current ();
+
 #if PRINT_DEBUG
   printf ("SYS_EXEC: file: %s\n", file);
 #endif
@@ -213,7 +216,12 @@ sys_exec (int *eax, const char *file)
   if (!is_user_vaddr (file))
     sys_exit (eax, -1);
 
-  return process_execute (file);
+  pid = process_execute (file);
+  lock_acquire (&curr->load_lock);
+  while (curr->child_status == LOADING)
+    cond_wait (&curr->load_cond, &curr->load_lock);
+  lock_release (&curr->load_lock);
+  return curr->child_status == FAILED ? -1 : pid;
 }
 
 static int

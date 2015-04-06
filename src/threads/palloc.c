@@ -10,6 +10,7 @@
 #include "threads/init.h"
 #include "threads/loader.h"
 #include "threads/synch.h"
+#include "threads/thread.h"
 #include "threads/vaddr.h"
 
 /* Page allocator.  Hands out memory in page-size (or

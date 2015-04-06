@@ -25,6 +25,13 @@ typedef int tid_t;
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
 
+enum load_status
+  {
+    LOADING,
+    LOADED,
+    FAILED
+  };
+
 /* A kernel thread or user process.
 
    Each thread structure is stored in its own 4 kB page.  The
@@ -98,6 +105,9 @@ struct thread
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
     struct file *executable;            /* Executable file. */
+    enum load_status child_status;      /* The load status of child thread. */
+    struct lock load_lock;              /* The lock for child_status. */
+    struct condition load_cond;         /* The condition for child_status. */
     int max_fd;                         /* The largest file descriptor. */
     struct list fd_list;                /* List of file descriptors. */
     struct thread *parent;              /* Parent thread. */

@@ -8,6 +8,7 @@
 #include <list.h>
 #include "userprog/gdt.h"
 #include "userprog/pagedir.h"
+#include "userprog/syscall.h"
 #include "userprog/tss.h"
 #include "filesys/directory.h"
 #include "filesys/file.h"
@@ -34,6 +35,7 @@ process_execute (const char *file_name)
   char *token, *save_ptr;
   struct file *file;
   tid_t tid;
+  struct thread *curr = thread_current ();
 
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
@@ -47,6 +49,10 @@ process_execute (const char *file_name)
   if (file == NULL)
     {
       palloc_free_page (fn_copy);
+      lock_acquire (&curr->load_lock);
+      curr->child_status = FAILED;
+      cond_signal (&curr->load_cond, &curr->load_lock);
+      lock_release (&curr->load_lock);
       return TID_ERROR;
     }
   file_close (file);
@@ -55,7 +61,14 @@ process_execute (const char *file_name)
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
-    palloc_free_page (fn_copy);
+    {
+      palloc_free_page (fn_copy);
+      lock_acquire (&curr->load_lock);
+      curr->child_status = FAILED;
+      cond_signal (&curr->load_cond, &curr->load_lock);
+      lock_release (&curr->load_lock);
+    }
+
   return tid;
 }
 
@@ -67,6 +80,7 @@ start_process (void *f_name)
   char *file_name = f_name;
   struct intr_frame if_;
   bool success;
+  struct thread *curr = thread_current ();
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
@@ -78,7 +92,20 @@ start_process (void *f_name)
   /* If load failed, quit. */
   palloc_free_page (file_name);
   if (!success)
-    thread_exit ();
+    {
+      lock_acquire (&curr->parent->load_lock);
+      curr->parent->child_status = FAILED;
+      cond_signal (&curr->parent->load_cond, &curr->parent->load_lock);
+      lock_release (&curr->parent->load_lock);
+      sys_exit (&if_.eax, -1);
+    }
+  else
+    {
+      lock_acquire (&curr->parent->load_lock);
+      curr->parent->child_status = LOADED;
+      cond_signal (&curr->parent->load_cond, &curr->parent->load_lock);
+      lock_release (&curr->parent->load_lock);
+    }
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in

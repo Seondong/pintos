@@ -172,8 +172,7 @@ thread_create (const char *name, int priority,
   struct switch_entry_frame *ef;
   struct switch_threads_frame *sf;
 #ifdef USERPROG
-  struct thread_child *child = (struct thread_child *)
-    malloc (sizeof (struct thread_child));
+  struct thread_child *child;
 #endif
   tid_t tid;
 
@@ -203,6 +202,9 @@ thread_create (const char *name, int priority,
   sf->eip = switch_entry;
 
 #ifdef USERPROG
+  child = (struct thread_child *)
+    malloc (sizeof (struct thread_child));
+  curr->child_status = LOADING;
   t->parent = thread_current ();
   child->tid = tid;
   child->exited = false;
@@ -481,7 +483,10 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+  t->exit_status = -1;
 #ifdef USERPROG
+  lock_init (&t->load_lock);
+  cond_init (&t->load_cond);
   t->max_fd = 2;
   list_init (&t->fd_list);
   list_init (&t->child_list);
