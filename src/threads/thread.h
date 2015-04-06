@@ -97,6 +97,7 @@ struct thread
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
+    struct file *executable;            /* Executable file. */
     int max_fd;                         /* The largest file descriptor. */
     struct list fd_list;                /* List of file descriptors. */
     struct thread *parent;              /* Parent thread. */

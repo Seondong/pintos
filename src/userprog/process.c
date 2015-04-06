@@ -298,6 +298,8 @@ load (const char *file_name, void (**eip) (void), void **esp)
       goto done;
     }
 
+  file_deny_write (file);
+
   /* Read and verify executable header. */
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
       || memcmp (ehdr.e_ident, "\177ELF\1\1\1", 7)
@@ -420,7 +422,10 @@ load (const char *file_name, void (**eip) (void), void **esp)
   /* We arrive here whether the load is successful or not. */
   palloc_free_page (cmd_copy);
   palloc_free_page (argv);
-  file_close (file);
+  if (success)
+    t->executable = file;
+  else
+    file_close (file);
   return success;
 }
 
