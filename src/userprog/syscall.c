@@ -37,10 +37,16 @@ static struct file *thread_fd_get (int fd);
 static void thread_fd_free (int fd);
 static int thread_fd_insert (struct file *file);
 
+static struct lock filesys_lock;
+
+static void filesys_acquire (void);
+static void filesys_release (void);
+
 void
 syscall_init (void)
 {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
+  lock_init (&filesys_lock);
 }
 
 static void
@@ -181,11 +187,17 @@ sys_exit (int *eax, int status)
           tfd = list_entry (e, struct thread_fd, elem);
           e = list_remove (e);
           if (tfd->file != NULL)
-            file_close (tfd->file);
+            {
+              filesys_acquire ();
+              file_close (tfd->file);
+              filesys_release ();
+            }
           free (tfd);
         }
     }
+  filesys_acquire ();
   file_close (curr->executable);
+  filesys_release ();
   curr->exit_status = status;
   *eax = status;
   thread_exit ();
@@ -217,6 +229,8 @@ sys_wait (int *eax UNUSED, pid_t pid)
 static bool
 sys_create (int *eax, const char *file, unsigned initial_size)
 {
+  bool success;
+
 #if PRINT_DEBUG
   printf ("SYS_CREATE: file: %s, initial_size: %u\n", file, initial_size);
 #endif
@@ -224,12 +238,17 @@ sys_create (int *eax, const char *file, unsigned initial_size)
   if (file == NULL || !is_user_vaddr (file))
     sys_exit (eax, -1);
 
-  return filesys_create (file, initial_size);
+  filesys_acquire ();
+  success = filesys_create (file, initial_size);
+  filesys_release ();
+  return success;
 }
 
 static bool
 sys_remove (int *eax, const char *file)
 {
+  bool success;
+
 #if PRINT_DEBUG
   printf ("SYS_REMOVE: file: %s\n", file);
 #endif
@@ -237,13 +256,17 @@ sys_remove (int *eax, const char *file)
   if (file == NULL || !is_user_vaddr (file))
     sys_exit (eax, -1);
 
-  return filesys_remove (file);
+  filesys_acquire ();
+  success = filesys_remove (file);
+  filesys_release ();
+  return success;
 }
 
 static int
 sys_open (int *eax, const char *file)
 {
   struct file *f;
+  int fd;
 
 #if PRINT_DEBUG
   printf ("SYS_OPEN: file: %s\n", file);
@@ -252,16 +275,23 @@ sys_open (int *eax, const char *file)
   if (file == NULL || !is_user_vaddr (file))
     sys_exit (eax, -1);
 
+  filesys_acquire ();
   f = filesys_open (file);
   if (f == NULL)
-    return -1;
-  return thread_fd_insert (f);
+    {
+      filesys_release ();
+      return -1;
+    }
+  fd = thread_fd_insert (f);
+  filesys_release ();
+  return fd;
 }
 
 static int
 sys_filesize (int *eax, int fd)
 {
   struct file *file;
+  int size;
 
 #if PRINT_DEBUG
   printf ("SYS_FILESIZE: fd: %d\n", fd);
@@ -271,7 +301,10 @@ sys_filesize (int *eax, int fd)
   if (file == NULL)
     sys_exit (eax, -1);
 
-  return file_length (file);
+  filesys_acquire ();
+  size = file_length (file);
+  filesys_release ();
+  return size;
 }
 
 static int
@@ -279,6 +312,7 @@ sys_read (int *eax, int fd, void *buffer, unsigned size)
 {
   struct file *file;
   unsigned i;
+  int bytes;
 
 #if PRINT_DEBUG
   printf ("SYS_READ: fd: %d, buffer: %p, size: %u\n", fd, buffer, size);
@@ -302,13 +336,17 @@ sys_read (int *eax, int fd, void *buffer, unsigned size)
   if (file == NULL)
     sys_exit (eax, -1);
 
-  return file_read (file, buffer, size);
+  filesys_acquire ();
+  bytes = file_read (file, buffer, size);
+  filesys_release ();
+  return bytes;
 }
 
 static int
 sys_write (int *eax, int fd, const void *buffer, unsigned size)
 {
   struct file *file;
+  int bytes;
 
 #if PRINT_DEBUG
   printf ("SYS_WRITE: fd: %d, buffer: %p, size: %u\n", fd, buffer, size);
@@ -327,7 +365,10 @@ sys_write (int *eax, int fd, const void *buffer, unsigned size)
   if (file == NULL)
     sys_exit (eax, -1);
 
-  return file_write (file, buffer, size);
+  filesys_acquire ();
+  bytes = file_write (file, buffer, size);
+  filesys_release ();
+  return bytes;
 }
 
 static void
@@ -343,13 +384,16 @@ sys_seek (int *eax, int fd, unsigned position)
   if (file == NULL)
     sys_exit (eax, -1);
 
+  filesys_acquire ();
   file_seek (file, position);
+  filesys_release ();
 }
 
 static unsigned
 sys_tell (int *eax, int fd)
 {
   struct file *file;
+  unsigned offset;
 
 #if PRINT_DEBUG
   printf ("SYS_TELL: fd: %d\n", fd);
@@ -359,7 +403,10 @@ sys_tell (int *eax, int fd)
   if (file == NULL)
     sys_exit (eax, -1);
 
-  return file_tell (file);
+  filesys_acquire ();
+  offset = file_tell (file);
+  filesys_release ();
+  return offset;
 }
 
 static void
@@ -375,8 +422,10 @@ sys_close (int *eax, int fd)
   if (file == NULL)
     sys_exit (eax, -1);
 
+  filesys_acquire ();
   file_close (file);
   thread_fd_free (fd);
+  filesys_release ();
 }
 
 /* Returns the file pointer with given FD. */
@@ -433,4 +482,20 @@ thread_fd_insert (struct file *file)
   list_push_back (&curr->fd_list, &tfd->elem);
 
   return tfd->fd;
+}
+
+/* Acquire the filesys_lock to usage file system. */
+static void
+filesys_acquire (void)
+{
+  if (!lock_held_by_current_thread (&filesys_lock))
+    lock_acquire (&filesys_lock);
+}
+
+/* Release the filesys_lock. */
+static void
+filesys_release (void)
+{
+  if (lock_held_by_current_thread (&filesys_lock))
+    lock_release (&filesys_lock);
 }
