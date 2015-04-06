@@ -19,9 +19,6 @@
 #define PRINT_DEBUG 0
 #endif
 
-/* Default value of the fd list. */
-#define FD_LIST_SIZE 128
-
 static void syscall_handler (struct intr_frame *);
 static void sys_halt (int *eax);
 static pid_t sys_exec (int *eax, const char *file);

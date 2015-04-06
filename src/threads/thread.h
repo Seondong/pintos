@@ -98,7 +98,7 @@ struct thread
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
     int max_fd;                         /* The largest file descriptor. */
-    struct list fd_list;               /* List of file descriptors. */
+    struct list fd_list;                /* List of file descriptors. */
     struct thread *parent;              /* Parent thread. */
     struct list child_list;             /* List of child threads. */
 #endif
