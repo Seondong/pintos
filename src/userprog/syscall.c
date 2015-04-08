@@ -20,18 +20,18 @@
 #endif
 
 static void syscall_handler (struct intr_frame *);
-static void sys_halt (int *eax);
-static pid_t sys_exec (int *eax, const char *file);
-static int sys_wait (int *eax, pid_t pid);
-static bool sys_create (int *eax, const char *file, unsigned initial_size);
-static bool sys_remove (int *eax, const char *file);
-static int sys_open (int *eax, const char *file);
-static int sys_filesize (int *eax, int fd);
-static int sys_read (int *eax, int fd, void *buffer, unsigned size);
-static int sys_write (int *eax, int fd, const void *buffer, unsigned size);
-static void sys_seek (int *eax, int fd, unsigned position);
-static unsigned sys_tell (int *eax, int fd);
-static void sys_close (int *eax, int fd);
+static void sys_halt (void);
+static pid_t sys_exec (const char *file);
+static int sys_wait (pid_t pid);
+static bool sys_create (const char *file, unsigned initial_size);
+static bool sys_remove (const char *file);
+static int sys_open (const char *file);
+static int sys_filesize (int fd);
+static int sys_read (int fd, void *buffer, unsigned size);
+static int sys_write (int fd, const void *buffer, unsigned size);
+static void sys_seek (int fd, unsigned position);
+static unsigned sys_tell (int fd);
+static void sys_close (int fd);
 
 static struct file *thread_fd_get (int fd);
 static void thread_fd_free (int fd);
@@ -67,91 +67,91 @@ syscall_handler (struct intr_frame *f)
   switch (syscall_nr)
     {
     case SYS_HALT:
-      sys_halt (&f->eax);
+      sys_halt ();
       break;
     case SYS_EXIT:
       if (!is_user_vaddr (arg1))
-        sys_exit (&f->eax, -1);
+        sys_exit (-1);
       status = *(int *) arg1;
-      sys_exit (&f->eax, status);
+      sys_exit (status);
       break;
     case SYS_EXEC:
       if (!is_user_vaddr (arg1))
-        sys_exit (&f->eax, -1);
+        sys_exit (-1);
       file = *(char **) arg1;
-      f->eax = sys_exec (&f->eax, file);
+      f->eax = sys_exec (file);
       break;
     case SYS_WAIT:
       if (!is_user_vaddr (arg1))
-        sys_exit (&f->eax, -1);
+        sys_exit (-1);
       pid = *(pid_t *) arg1;
-      f->eax = sys_wait (&f->eax, pid);
+      f->eax = sys_wait (pid);
       break;
     case SYS_CREATE:
       if (!is_user_vaddr (arg2))
-        sys_exit (&f->eax, -1);
+        sys_exit (-1);
       file = *(char **) arg1;
       initial_size = *(unsigned *) arg2;
-      f->eax = sys_create (&f->eax, file, initial_size);
+      f->eax = sys_create (file, initial_size);
       break;
     case SYS_REMOVE:
       if (!is_user_vaddr (arg1))
-        sys_exit (&f->eax, -1);
+        sys_exit (-1);
       file = *(char **) arg1;
-      f->eax = sys_remove (&f->eax, file);
+      f->eax = sys_remove (file);
       break;
     case SYS_OPEN:
       if (!is_user_vaddr (arg1))
-        sys_exit (&f->eax, -1);
+        sys_exit (-1);
       file = *(char **) arg1;
-      f->eax = sys_open (&f->eax, file);
+      f->eax = sys_open (file);
       break;
     case SYS_FILESIZE:
       if (!is_user_vaddr (arg1))
-        sys_exit (&f->eax, -1);
+        sys_exit (-1);
       fd = *(int *) arg1;
-      f->eax = sys_filesize (&f->eax, fd);
+      f->eax = sys_filesize (fd);
       break;
     case SYS_READ:
       if (!is_user_vaddr (arg3))
-        sys_exit (&f->eax, -1);
+        sys_exit (-1);
       fd = *(int *) arg1;
       rbuffer = *(void **) arg2;
       size = *(unsigned *) arg3;
-      f->eax = sys_read (&f->eax, fd, rbuffer, size);
+      f->eax = sys_read (fd, rbuffer, size);
       break;
     case SYS_WRITE:
       if (!is_user_vaddr (arg3))
-        sys_exit (&f->eax, -1);
+        sys_exit (-1);
       fd = *(int *) arg1;
       wbuffer = *(void **) arg2;
       size = *(unsigned *) arg3;
-      f->eax = sys_write (&f->eax, fd, wbuffer, size);
+      f->eax = sys_write (fd, wbuffer, size);
       break;
     case SYS_SEEK:
       if (!is_user_vaddr (arg2))
-        sys_exit (&f->eax, -1);
+        sys_exit (-1);
       fd = *(int *) arg1;
       position = *(unsigned *) arg2;
-      sys_seek (&f->eax, fd, position);
+      sys_seek (fd, position);
       break;
     case SYS_TELL:
       if (!is_user_vaddr (arg1))
-        sys_exit (&f->eax, -1);
+        sys_exit (-1);
       fd = *(int *) arg1;
-      f->eax = sys_tell (&f->eax, fd);
+      f->eax = sys_tell (fd);
       break;
     case SYS_CLOSE:
       if (!is_user_vaddr (arg1))
-        sys_exit (&f->eax, -1);
+        sys_exit (-1);
       fd = *(int *) arg1;
-      sys_close (&f->eax, fd);
+      sys_close (fd);
       break;
     }
 }
 
 static void
-sys_halt (int *eax UNUSED)
+sys_halt (void)
 {
 #if PRINT_DEBUG
   printf ("SYS_HALT\n");
@@ -161,7 +161,7 @@ sys_halt (int *eax UNUSED)
 }
 
 void
-sys_exit (int *eax, int status)
+sys_exit (int status)
 {
   struct thread *curr = thread_current ();
   const char *name = thread_name ();
@@ -199,12 +199,11 @@ sys_exit (int *eax, int status)
   file_close (curr->executable);
   filesys_release ();
   curr->exit_status = status;
-  *eax = status;
   thread_exit ();
 }
 
 static pid_t
-sys_exec (int *eax, const char *file)
+sys_exec (const char *file)
 {
   pid_t pid;
   struct thread *curr = thread_current ();
@@ -214,7 +213,7 @@ sys_exec (int *eax, const char *file)
 #endif
 
   if (!is_user_vaddr (file))
-    sys_exit (eax, -1);
+    sys_exit (-1);
 
   pid = process_execute (file);
   sema_down (&curr->load_sema);
@@ -222,7 +221,7 @@ sys_exec (int *eax, const char *file)
 }
 
 static int
-sys_wait (int *eax UNUSED, pid_t pid)
+sys_wait (pid_t pid)
 {
 #if PRINT_DEBUG
   printf ("SYS_WAIT: pid: %d\n", pid);
@@ -232,7 +231,7 @@ sys_wait (int *eax UNUSED, pid_t pid)
 }
 
 static bool
-sys_create (int *eax, const char *file, unsigned initial_size)
+sys_create (const char *file, unsigned initial_size)
 {
   bool success;
 
@@ -241,7 +240,7 @@ sys_create (int *eax, const char *file, unsigned initial_size)
 #endif
 
   if (file == NULL || !is_user_vaddr (file))
-    sys_exit (eax, -1);
+    sys_exit (-1);
 
   filesys_acquire ();
   success = filesys_create (file, initial_size);
@@ -250,7 +249,7 @@ sys_create (int *eax, const char *file, unsigned initial_size)
 }
 
 static bool
-sys_remove (int *eax, const char *file)
+sys_remove (const char *file)
 {
   bool success;
 
@@ -259,7 +258,7 @@ sys_remove (int *eax, const char *file)
 #endif
 
   if (file == NULL || !is_user_vaddr (file))
-    sys_exit (eax, -1);
+    sys_exit (-1);
 
   filesys_acquire ();
   success = filesys_remove (file);
@@ -268,7 +267,7 @@ sys_remove (int *eax, const char *file)
 }
 
 static int
-sys_open (int *eax, const char *file)
+sys_open (const char *file)
 {
   struct file *f;
   int fd;
@@ -278,7 +277,7 @@ sys_open (int *eax, const char *file)
 #endif
 
   if (file == NULL || !is_user_vaddr (file))
-    sys_exit (eax, -1);
+    sys_exit (-1);
 
   filesys_acquire ();
   f = filesys_open (file);
@@ -293,7 +292,7 @@ sys_open (int *eax, const char *file)
 }
 
 static int
-sys_filesize (int *eax, int fd)
+sys_filesize (int fd)
 {
   struct file *file;
   int size;
@@ -304,7 +303,7 @@ sys_filesize (int *eax, int fd)
 
   file = thread_fd_get (fd);
   if (file == NULL)
-    sys_exit (eax, -1);
+    sys_exit (-1);
 
   filesys_acquire ();
   size = file_length (file);
@@ -313,7 +312,7 @@ sys_filesize (int *eax, int fd)
 }
 
 static int
-sys_read (int *eax, int fd, void *buffer, unsigned size)
+sys_read (int fd, void *buffer, unsigned size)
 {
   struct file *file;
   unsigned i;
@@ -324,7 +323,7 @@ sys_read (int *eax, int fd, void *buffer, unsigned size)
 #endif
 
   if (!is_user_vaddr (buffer))
-    sys_exit (eax, -1);
+    sys_exit (-1);
 
   if (fd == 0)
     {
@@ -339,7 +338,7 @@ sys_read (int *eax, int fd, void *buffer, unsigned size)
 
   file = thread_fd_get (fd);
   if (file == NULL)
-    sys_exit (eax, -1);
+    sys_exit (-1);
 
   filesys_acquire ();
   bytes = file_read (file, buffer, size);
@@ -348,7 +347,7 @@ sys_read (int *eax, int fd, void *buffer, unsigned size)
 }
 
 static int
-sys_write (int *eax, int fd, const void *buffer, unsigned size)
+sys_write (int fd, const void *buffer, unsigned size)
 {
   struct file *file;
   int bytes;
@@ -358,7 +357,7 @@ sys_write (int *eax, int fd, const void *buffer, unsigned size)
 #endif
 
   if (!is_user_vaddr (buffer))
-    sys_exit (eax, -1);
+    sys_exit (-1);
 
   if (fd == 1)
     {
@@ -368,7 +367,7 @@ sys_write (int *eax, int fd, const void *buffer, unsigned size)
 
   file = thread_fd_get (fd);
   if (file == NULL)
-    sys_exit (eax, -1);
+    sys_exit (-1);
 
   filesys_acquire ();
   bytes = file_write (file, buffer, size);
@@ -377,7 +376,7 @@ sys_write (int *eax, int fd, const void *buffer, unsigned size)
 }
 
 static void
-sys_seek (int *eax, int fd, unsigned position)
+sys_seek (int fd, unsigned position)
 {
   struct file *file;
 
@@ -387,7 +386,7 @@ sys_seek (int *eax, int fd, unsigned position)
 
   file = thread_fd_get (fd);
   if (file == NULL)
-    sys_exit (eax, -1);
+    sys_exit (-1);
 
   filesys_acquire ();
   file_seek (file, position);
@@ -395,7 +394,7 @@ sys_seek (int *eax, int fd, unsigned position)
 }
 
 static unsigned
-sys_tell (int *eax, int fd)
+sys_tell (int fd)
 {
   struct file *file;
   unsigned offset;
@@ -406,7 +405,7 @@ sys_tell (int *eax, int fd)
 
   file = thread_fd_get (fd);
   if (file == NULL)
-    sys_exit (eax, -1);
+    sys_exit (-1);
 
   filesys_acquire ();
   offset = file_tell (file);
@@ -415,7 +414,7 @@ sys_tell (int *eax, int fd)
 }
 
 static void
-sys_close (int *eax, int fd)
+sys_close (int fd)
 {
   struct file *file;
 
@@ -425,7 +424,7 @@ sys_close (int *eax, int fd)
 
   file = thread_fd_get (fd);
   if (file == NULL)
-    sys_exit (eax, -1);
+    sys_exit (-1);
 
   filesys_acquire ();
   file_close (file);

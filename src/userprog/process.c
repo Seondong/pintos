@@ -91,7 +91,7 @@ start_process (void *f_name)
     {
       curr->parent->child_status = FAILED;
       sema_up (&curr->parent->load_sema);
-      sys_exit (&if_.eax, -1);
+      sys_exit (-1);
     }
   else
     {

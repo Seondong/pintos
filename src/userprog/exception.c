@@ -152,7 +152,7 @@ page_fault (struct intr_frame *f)
   /* Exit when a pointer points to unmapped virtual memory, or
      points to kernal virtual address space. */
   if (not_present || user)
-    sys_exit (&f->eax, -1);
+    sys_exit (-1);
 
   /* To implement virtual memory, delete the rest of the function
      body, and replace it with code that brings in the page to
