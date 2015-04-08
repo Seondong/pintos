@@ -10,3 +10,5 @@
 
 # Build directory
 /src/threads/build/
+/src/userprog/build/
+/src/vm/build/
