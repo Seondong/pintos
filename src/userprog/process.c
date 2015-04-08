@@ -49,10 +49,8 @@ process_execute (const char *file_name)
   if (file == NULL)
     {
       palloc_free_page (fn_copy);
-      lock_acquire (&curr->load_lock);
       curr->child_status = FAILED;
-      cond_signal (&curr->load_cond, &curr->load_lock);
-      lock_release (&curr->load_lock);
+      sema_up (&curr->load_sema);
       return TID_ERROR;
     }
   file_close (file);
@@ -63,10 +61,8 @@ process_execute (const char *file_name)
   if (tid == TID_ERROR)
     {
       palloc_free_page (fn_copy);
-      lock_acquire (&curr->load_lock);
       curr->child_status = FAILED;
-      cond_signal (&curr->load_cond, &curr->load_lock);
-      lock_release (&curr->load_lock);
+      sema_up (&curr->load_sema);
     }
 
   return tid;
@@ -93,18 +89,14 @@ start_process (void *f_name)
   palloc_free_page (file_name);
   if (!success)
     {
-      lock_acquire (&curr->parent->load_lock);
       curr->parent->child_status = FAILED;
-      cond_signal (&curr->parent->load_cond, &curr->parent->load_lock);
-      lock_release (&curr->parent->load_lock);
+      sema_up (&curr->parent->load_sema);
       sys_exit (&if_.eax, -1);
     }
   else
     {
-      lock_acquire (&curr->parent->load_lock);
       curr->parent->child_status = LOADED;
-      cond_signal (&curr->parent->load_cond, &curr->parent->load_lock);
-      lock_release (&curr->parent->load_lock);
+      sema_up (&curr->parent->load_sema);
     }
 
   /* Start the user process by simulating a return from an

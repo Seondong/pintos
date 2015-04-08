@@ -485,8 +485,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->exit_status = -1;
 #ifdef USERPROG
-  lock_init (&t->load_lock);
-  cond_init (&t->load_cond);
+  sema_init (&t->load_sema, 0);
   t->max_fd = 2;
   list_init (&t->fd_list);
   list_init (&t->child_list);

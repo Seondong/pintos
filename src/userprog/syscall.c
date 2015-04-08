@@ -217,10 +217,7 @@ sys_exec (int *eax, const char *file)
     sys_exit (eax, -1);
 
   pid = process_execute (file);
-  lock_acquire (&curr->load_lock);
-  while (curr->child_status == LOADING)
-    cond_wait (&curr->load_cond, &curr->load_lock);
-  lock_release (&curr->load_lock);
+  sema_down (&curr->load_sema);
   return curr->child_status == FAILED ? -1 : pid;
 }
 

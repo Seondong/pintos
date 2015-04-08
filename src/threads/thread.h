@@ -106,8 +106,7 @@ struct thread
     uint32_t *pagedir;                  /* Page directory. */
     struct file *executable;            /* Executable file. */
     enum load_status child_status;      /* The load status of child thread. */
-    struct lock load_lock;              /* The lock for child_status. */
-    struct condition load_cond;         /* The condition for child_status. */
+    struct semaphore load_sema;         /* The semaphore for child_status. */
     int max_fd;                         /* The largest file descriptor. */
     struct list fd_list;                /* List of file descriptors. */
     struct thread *parent;              /* Parent thread. */
