@@ -52,7 +52,7 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f)
 {
-  int syscall_nr = *(int *) f->esp;
+  int syscall_nr;
   void *arg1 = (int *) f->esp + 1;
   void *arg2 = (int *) f->esp + 2;
   void *arg3 = (int *) f->esp + 3;
@@ -63,6 +63,10 @@ syscall_handler (struct intr_frame *f)
   int fd;
   void *rbuffer;
   const void *wbuffer;
+
+  if (!is_user_vaddr ((int *) f->esp))
+    sys_exit (-1);
+  syscall_nr = *(int *) f->esp;
 
   switch (syscall_nr)
     {
