@@ -4,6 +4,9 @@ Operating Systems and Lab (CS330) by Insik Shin, [KAIST](http://www.kaist.ac.kr)
 
 ## Environments
 
+- Use docker on [yhpark/pintos-kaist](https://registry.hub.docker.com/u/yhpark/pintos-kaist/) (Recommended)
+    - `docker pull yhpark/pintos-kaist`
+    - `docker run -i -t -v <PATH_TO_PINTOS>:/pintos yhpark/pintos-kaist bash`
 - Linux
     - Install X development libraries
     - Install development tools
