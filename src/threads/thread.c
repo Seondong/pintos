@@ -167,11 +167,11 @@ thread_create (const char *name, int priority,
                thread_func *function, void *aux)
 {
   struct thread *t;
-  struct thread *curr = thread_current ();
   struct kernel_thread_frame *kf;
   struct switch_entry_frame *ef;
   struct switch_threads_frame *sf;
 #ifdef USERPROG
+  struct thread *curr = thread_current ();
   struct thread_child *child;
 #endif
   tid_t tid;
