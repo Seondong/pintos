@@ -6,7 +6,17 @@ Operating Systems and Lab (CS330) by Insik Shin, [KAIST](http://www.kaist.ac.kr)
 
 - Use docker on [yhpark/pintos-kaist](https://registry.hub.docker.com/u/yhpark/pintos-kaist/) (Recommended)
     - `docker pull yhpark/pintos-kaist`
-    - `docker run -i -t -v <PATH_TO_PINTOS>:/pintos yhpark/pintos-kaist bash`
+    - `docker run -i -t --rm -v <PATH_TO_PINTOS>:/pintos yhpark/pintos-kaist bash`
+    - If you want to run Docker as a non-root user `<USER>`, put `entry.sh` to `pintos`:
+
+        ``` sh
+        #!/bin/bash
+        yum install -y sudo
+        useradd -u <UID> <USER>
+        echo '<USER> ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+        su <USER> --session-command bash
+        ```
+      and then run `docker run -i -t --rm -v <PATH_TO_PINTOS>:/pintos yhpark/pintos-kaist /pintos/entry.sh`.
 - Linux
     - Install X development libraries
     - Install development tools
