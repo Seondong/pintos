@@ -11,9 +11,7 @@ Operating Systems and Lab (CS330) by Insik Shin, [KAIST](http://www.kaist.ac.kr)
 
         ``` sh
         #!/bin/bash
-        yum install -y sudo
         useradd -u <UID> <USER>
-        echo '<USER> ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
         su <USER> --session-command bash
         ```
       and then run `docker run -i -t -v <PATH_TO_PINTOS>:/pintos yhpark/pintos-kaist /pintos/entry.sh`.
