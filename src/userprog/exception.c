@@ -6,6 +6,12 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#ifdef VM
+#include <stdint.h>
+#include "userprog/pagedir.h"
+#include "vm/frame.h"
+#include "vm/page.h"
+#endif
 
 /* Number of page faults processed. */
 static long long page_fault_cnt;
@@ -128,6 +134,12 @@ page_fault (struct intr_frame *f)
   bool write;        /* True: access was write, false: access was read. */
   bool user;         /* True: access by user, false: access by kernel. */
   void *fault_addr;  /* Fault address. */
+#ifdef VM
+  struct thread *t;
+  uint8_t *upage;
+  uint8_t *kpage;
+  bool success;
+#endif
 
   /* Obtain faulting address, the virtual address that was
      accessed to cause the fault.  It may point to code or to
@@ -149,6 +161,29 @@ page_fault (struct intr_frame *f)
   not_present = (f->error_code & PF_P) == 0;
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
+
+#ifdef VM
+  /* Stack growth. */
+  if (is_user_vaddr (fault_addr)
+      && (uint8_t *) f->esp - 32 <= (uint8_t *) fault_addr)
+    {
+      t = thread_current ();
+      kpage = frame_alloc (PAL_ZERO);
+      if (kpage != NULL)
+        {
+          upage = pg_round_down (fault_addr);
+          success = (pagedir_get_page (t->pagedir, upage) == NULL
+                     && pagedir_set_page (t->pagedir, upage, kpage, true));
+          if (success)
+            {
+              page_insert (upage);
+              return;
+            }
+          else
+            frame_free (kpage);
+        }
+    }
+#endif
 
   /* Exit when a pointer points to unmapped virtual memory, or
      points to kernal virtual address space. */
