@@ -2,8 +2,15 @@
 #include <debug.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <string.h>
 #include <hash.h>
+#include "filesys/file.h"
 #include "threads/malloc.h"
+#include "threads/thread.h"
+#include "threads/vaddr.h"
+#include "userprog/pagedir.h"
+#include "vm/frame.h"
+#include "vm/swap.h"
 
 /* Supplemental page table. */
 static struct hash page_table;
@@ -28,6 +35,8 @@ page_insert (const void *address)
   struct hash_elem *e;
 
   p->addr = (void *) address;
+  p->file = NULL;
+  p->valid = true;
   e = hash_insert (&page_table, &p->hash_elem);
   return e != NULL ? hash_entry (e, struct page, hash_elem) : NULL;
 }
@@ -49,6 +58,93 @@ void
 page_clear (void)
 {
   hash_clear (&page_table, page_destructor);
+}
+
+/* Load the given PAGE from swap. */
+bool
+page_load_swap (struct page *page)
+{
+  struct thread *t = thread_current ();
+  void *kpage = frame_alloc (page->addr, 0);
+  bool success;
+
+  ASSERT (!page->valid);
+
+  swap_in (page, kpage);
+  success = (pagedir_get_page (t->pagedir, page->addr) == NULL
+             && pagedir_set_page (t->pagedir, page->addr, kpage, true));
+  if (!success)
+    {
+      frame_free (kpage);
+      return false;
+    }
+  pagedir_set_dirty (t->pagedir, page->addr, true);
+  pagedir_set_accessed (t->pagedir, page->addr, true);
+  page->valid = true;
+  return true;
+}
+
+/* Load the given PAGE from a file. */
+bool
+page_load_file (struct page *page)
+{
+  struct thread *t = thread_current ();
+  void *kpage;
+  bool success;
+
+  ASSERT (page->file != NULL);
+
+  if (page->file_read_bytes == 0)
+    kpage = frame_alloc (page->addr, PAL_ZERO);
+  else
+    kpage = frame_alloc (page->addr, 0);
+
+  if (kpage == NULL)
+    return false;
+
+  if (page->file_read_bytes > 0)
+    {
+      if ((int) page->file_read_bytes != file_read_at (page->file, kpage,
+                                                       page->file_read_bytes,
+                                                       page->file_ofs))
+        {
+          frame_free (kpage);
+          return false;
+        }
+      memset (kpage + page->file_read_bytes, 0, PGSIZE - page->file_read_bytes);
+    }
+
+  success = (pagedir_get_page (t->pagedir, page->addr) == NULL
+             && pagedir_set_page (t->pagedir, page->addr, kpage,
+                                  page->file_writable));
+  if (!success)
+    {
+      frame_free (kpage);
+      return false;
+    }
+  pagedir_set_accessed (t->pagedir, page->addr, true);
+  return true;
+}
+
+/* Load a given PAGE with zeros. */
+bool
+page_load_zero (struct page *page)
+{
+  struct thread *t = thread_current ();
+  void *kpage = frame_alloc (page->addr, PAL_ZERO);
+  bool success;
+
+  if (kpage == NULL)
+    return false;
+  success = (pagedir_get_page (t->pagedir, page->addr) == NULL
+             && pagedir_set_page (t->pagedir, page->addr, kpage, true));
+  if (!success)
+    {
+      frame_free (kpage);
+      return false;
+    }
+  pagedir_set_accessed (t->pagedir, page->addr, true);
+  return true;
 }
 
 /* Returns a hash value for page P. */

@@ -534,6 +534,10 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   ASSERT (pg_ofs (upage) == 0);
   ASSERT (ofs % PGSIZE == 0);
 
+#ifdef VM
+  off_t current_ofs = ofs;
+#endif
+
   file_seek (file, ofs);
   while (read_bytes > 0 || zero_bytes > 0)
     {
@@ -543,9 +547,13 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
+#ifdef VM
+      struct page *page;
+#endif
+
       /* Get a page of memory. */
 #ifdef VM
-      uint8_t *kpage = frame_alloc (0);
+      uint8_t *kpage = frame_alloc (upage, 0);
 #else
       uint8_t *kpage = palloc_get_page (PAL_USER);
 #endif
@@ -574,11 +582,22 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 #endif
           return false;
         }
+#ifdef VM
+      page_insert (upage);
+      page = page_find (upage);
+      page->file = file;
+      page->file_ofs = current_ofs;
+      page->file_read_bytes = page_read_bytes;
+      page->file_writable = writable;
+#endif
 
       /* Advance. */
       read_bytes -= page_read_bytes;
       zero_bytes -= page_zero_bytes;
       upage += PGSIZE;
+#ifdef VM
+      current_ofs += PGSIZE;
+#endif
     }
   return true;
 }
@@ -592,7 +611,7 @@ setup_stack (void **esp)
   bool success = false;
 
 #ifdef VM
-  kpage = frame_alloc (PAL_ZERO);
+  kpage = frame_alloc (((uint8_t *) PHYS_BASE) - PGSIZE, PAL_ZERO);
 #else
   kpage = palloc_get_page (PAL_USER | PAL_ZERO);
 #endif

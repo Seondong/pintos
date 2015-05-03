@@ -136,6 +136,7 @@ page_fault (struct intr_frame *f)
   void *fault_addr;  /* Fault address. */
 #ifdef VM
   struct thread *t;
+  struct page *page;
   uint8_t *upage;
   uint8_t *kpage;
   bool success;
@@ -163,24 +164,48 @@ page_fault (struct intr_frame *f)
   user = (f->error_code & PF_U) != 0;
 
 #ifdef VM
-  /* Stack growth. */
-  if (is_user_vaddr (fault_addr)
-      && (uint8_t *) f->esp - 32 <= (uint8_t *) fault_addr)
+  if (is_user_vaddr (fault_addr))
     {
       t = thread_current ();
-      kpage = frame_alloc (PAL_ZERO);
-      if (kpage != NULL)
+      upage = pg_round_down (fault_addr);
+
+      /* Check supplemental page table. */
+      page = page_find (upage);
+      if (page != NULL)
         {
-          upage = pg_round_down (fault_addr);
-          success = (pagedir_get_page (t->pagedir, upage) == NULL
-                     && pagedir_set_page (t->pagedir, upage, kpage, true));
-          if (success)
-            {
-              page_insert (upage);
-              return;
-            }
+          /* Swap. */
+          if (!page->valid)
+            success = page_load_swap (page);
+          /* File. */
+          else if (page->file != NULL)
+            success = page_load_file (page);
+          /* Zero. */
           else
-            frame_free (kpage);
+            success = page_load_zero (page);
+
+          if (success)
+            return;
+        }
+      else
+        {
+          /* Stack growth. */
+          if ((uint8_t *) f->esp - 32 <= (uint8_t *) fault_addr)
+            {
+              kpage = frame_alloc (upage, PAL_ZERO);
+              if (kpage != NULL)
+                {
+                  success = (pagedir_get_page (t->pagedir, upage) == NULL
+                             && pagedir_set_page (t->pagedir, upage, kpage,
+                                                  true));
+                  if (success)
+                    {
+                      page_insert (upage);
+                      return;
+                    }
+                  else
+                    frame_free (kpage);
+                }
+            }
         }
     }
 #endif
