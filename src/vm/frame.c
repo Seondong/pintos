@@ -42,8 +42,9 @@ frame_free (void *page)
       frame = list_entry (e, struct frame, elem);
       if (frame->addr == page)
         {
-          list_remove(e);
+          list_remove (e);
           palloc_free_page (frame->addr);
+          free (frame);
           break;
         }
     }
