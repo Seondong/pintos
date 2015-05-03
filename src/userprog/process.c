@@ -83,6 +83,12 @@ start_process (void *f_name)
   bool success;
   struct thread *curr = thread_current ();
 
+#ifdef VM
+  /* Initialize supplemental page table. */
+  if (!page_init (&curr->page_table))
+    sys_exit (-1);
+#endif
+
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
@@ -173,7 +179,7 @@ process_exit (void)
     }
 
 #ifdef VM
-  page_clear ();
+  page_destroy (&curr->page_table);
 #endif
 
   /* Destroy the current process's page directory and switch back
@@ -303,12 +309,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
   if (t->pagedir == NULL)
     goto done;
   process_activate ();
-
-#ifdef VM
-  /* Initialize supplemental page table. */
-  if (!page_init ())
-    goto done;
-#endif
 
   /* Break FILE_NAME into words. */
   cmd_copy = palloc_get_page (0);

@@ -20,10 +20,10 @@ struct page
     struct hash_elem hash_elem;         /* Hash table element. */
   };
 
-bool page_init (void);
+bool page_init (struct hash *page_table);
 struct page *page_insert (const void *address);
 struct page *page_find (const void *address);
-void page_clear (void);
+void page_destroy (struct hash *page_table);
 bool page_load_swap (struct page *page);
 bool page_load_file (struct page *page);
 bool page_load_zero (struct page *page);

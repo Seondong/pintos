@@ -12,18 +12,15 @@
 #include "vm/frame.h"
 #include "vm/swap.h"
 
-/* Supplemental page table. */
-static struct hash page_table;
-
 static hash_hash_func page_hash;
 static hash_less_func page_less;
 static hash_action_func page_destructor;
 
 /* Initializes the supplemental page table. */
 bool
-page_init (void)
+page_init (struct hash *page_table)
 {
-  return hash_init (&page_table, page_hash, page_less, NULL);
+  return hash_init (page_table, page_hash, page_less, NULL);
 }
 
 /* Inserts a page with given ADDRESS into the supplemental page
@@ -37,7 +34,7 @@ page_insert (const void *address)
   p->addr = (void *) address;
   p->file = NULL;
   p->valid = true;
-  e = hash_insert (&page_table, &p->hash_elem);
+  e = hash_insert (&thread_current ()->page_table, &p->hash_elem);
   return e != NULL ? hash_entry (e, struct page, hash_elem) : NULL;
 }
 
@@ -49,15 +46,15 @@ page_find (const void *address)
   struct hash_elem *e;
 
   p.addr = (void *) address;
-  e = hash_find (&page_table, &p.hash_elem);
+  e = hash_find (&thread_current ()->page_table, &p.hash_elem);
   return e != NULL ? hash_entry (e, struct page, hash_elem) : NULL;
 }
 
 /* Clears the page table. */
 void
-page_clear (void)
+page_destroy (struct hash *page_table)
 {
-  hash_clear (&page_table, page_destructor);
+  hash_destroy (page_table, page_destructor);
 }
 
 /* Load the given PAGE from swap. */

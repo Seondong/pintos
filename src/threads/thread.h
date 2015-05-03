@@ -2,6 +2,7 @@
 #define THREADS_THREAD_H
 
 #include <debug.h>
+#include <hash.h>
 #include <list.h>
 #include <stdint.h>
 #include "threads/synch.h"
@@ -111,6 +112,10 @@ struct thread
     struct list fd_list;                /* List of file descriptors. */
     struct thread *parent;              /* Parent thread. */
     struct list child_list;             /* List of child threads. */
+#endif
+
+#ifdef VM
+    struct hash page_table;             /* Supplemental page table. */
 #endif
 
     /* Owned by thread.c. */
