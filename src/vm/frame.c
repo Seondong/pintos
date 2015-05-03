@@ -3,13 +3,7 @@
 #include <list.h>
 #include "threads/malloc.h"
 
-/* Frame. */
-struct frame
-  {
-    void *addr;                         /* Physical address. */
-    struct list_elem elem;              /* List element. */
-  };
-
+/* Frame table. */
 static struct list frame_table;
 
 /* Initializes the frame table. */
