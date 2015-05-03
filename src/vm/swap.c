@@ -53,3 +53,10 @@ swap_in (struct page *page, void *kpage)
                kpage + sec_no * DISK_SECTOR_SIZE);
   bitmap_set (swap_table, page->swap_idx, false);
 }
+
+/* Destroys a swap. */
+void
+swap_destroy (size_t swap_idx)
+{
+  bitmap_set (swap_table, swap_idx, false);
+}

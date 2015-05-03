@@ -167,5 +167,18 @@ page_less (const struct hash_elem *a_, const struct hash_elem *b_,
 static void
 page_destructor (struct hash_elem *e, void *aux UNUSED)
 {
-  free (hash_entry (e, struct page, hash_elem));
+  struct thread *t = thread_current ();
+  struct page *page;
+  void *kpage;
+
+  page = hash_entry (e, struct page, hash_elem);
+  kpage = pagedir_get_page (t->pagedir, page->addr);
+  if (kpage != NULL)
+    {
+      pagedir_clear_page (t->pagedir, page->addr);
+      frame_free (kpage);
+    }
+  if (!page->valid)
+    swap_destroy (page->swap_idx);
+  free (page);
 }
