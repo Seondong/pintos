@@ -164,7 +164,7 @@ page_fault (struct intr_frame *f)
   user = (f->error_code & PF_U) != 0;
 
 #ifdef VM
-  if (is_user_vaddr (fault_addr))
+  if (not_present)
     {
       t = thread_current ();
       upage = pg_round_down (fault_addr);
@@ -189,7 +189,8 @@ page_fault (struct intr_frame *f)
       else
         {
           /* Stack growth. */
-          if ((uint8_t *) f->esp - 32 <= (uint8_t *) fault_addr)
+          if (is_user_vaddr (fault_addr)
+              && (uint8_t *) f->esp - 32 <= (uint8_t *) fault_addr)
             {
               kpage = frame_alloc (upage, PAL_ZERO);
               if (kpage != NULL)
@@ -211,8 +212,9 @@ page_fault (struct intr_frame *f)
 #endif
 
   /* Exit when a pointer points to unmapped virtual memory, or
-     points to kernal virtual address space. */
-  if (not_present || user)
+     tries to write to read-only page, or accesses to kernel
+     virtual address space by user. */
+  if (not_present || write || user)
     sys_exit (-1);
 
   /* To implement virtual memory, delete the rest of the function
