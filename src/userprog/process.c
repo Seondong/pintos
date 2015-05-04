@@ -21,7 +21,6 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #ifdef VM
-#include <hash.h>
 #include "vm/frame.h"
 #include "vm/page.h"
 #endif
