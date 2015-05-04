@@ -40,13 +40,13 @@ page_insert (const void *address)
 
 /* Finds a page with the given ADDRESS from the page table. */
 struct page *
-page_find (const void *address)
+page_find (struct hash *page_table, const void *address)
 {
   struct page p;
   struct hash_elem *e;
 
   p.addr = (void *) address;
-  e = hash_find (&thread_current ()->page_table, &p.hash_elem);
+  e = hash_find (page_table, &p.hash_elem);
   return e != NULL ? hash_entry (e, struct page, hash_elem) : NULL;
 }
 

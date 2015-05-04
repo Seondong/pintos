@@ -170,7 +170,7 @@ page_fault (struct intr_frame *f)
       upage = pg_round_down (fault_addr);
 
       /* Check supplemental page table. */
-      page = page_find (upage);
+      page = page_find (&t->page_table, upage);
       if (page != NULL)
         {
           /* Swap. */

@@ -78,7 +78,7 @@ frame_evict (enum palloc_flags flags)
         {
           if (pagedir_is_dirty (frame->thread->pagedir, frame->upage))
             {
-              page = page_find (frame->upage);
+              page = page_find (&frame->thread->page_table, frame->upage);
               page->valid = false;
               page->swap_idx = swap_out (frame->addr);
             }

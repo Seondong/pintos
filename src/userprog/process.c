@@ -583,7 +583,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
         }
 #ifdef VM
       page_insert (upage);
-      page = page_find (upage);
+      page = page_find (&thread_current ()->page_table, upage);
       page->file = file;
       page->file_ofs = current_ofs;
       page->file_read_bytes = page_read_bytes;

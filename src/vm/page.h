@@ -22,7 +22,7 @@ struct page
 
 bool page_init (struct hash *page_table);
 struct page *page_insert (const void *address);
-struct page *page_find (const void *address);
+struct page *page_find (struct hash *page_table, const void *address);
 void page_destroy (struct hash *page_table);
 bool page_load_swap (struct page *page);
 bool page_load_file (struct page *page);
