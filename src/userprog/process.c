@@ -178,7 +178,9 @@ process_exit (void)
     }
 
 #ifdef VM
+  frame_acquire ();
   page_destroy (&curr->page_table);
+  frame_release ();
 #endif
 
   /* Destroy the current process's page directory and switch back
@@ -552,18 +554,26 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 
       /* Get a page of memory. */
 #ifdef VM
-      uint8_t *kpage = frame_alloc (upage, 0);
+      uint8_t *kpage;
+      frame_acquire ();
+      kpage = frame_alloc (upage, 0);
 #else
       uint8_t *kpage = palloc_get_page (PAL_USER);
 #endif
       if (kpage == NULL)
-        return false;
+        {
+#ifdef VM
+          frame_release ();
+#endif
+          return false;
+        }
 
       /* Load this page. */
       if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
         {
 #ifdef VM
           frame_free (kpage);
+          frame_release ();
 #else
           palloc_free_page (kpage);
 #endif
@@ -576,6 +586,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
         {
 #ifdef VM
           frame_free (kpage);
+          frame_release ();
 #else
           palloc_free_page (kpage);
 #endif
@@ -588,6 +599,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       page->file_ofs = current_ofs;
       page->file_read_bytes = page_read_bytes;
       page->file_writable = writable;
+      frame_release ();
 #endif
 
       /* Advance. */
@@ -610,6 +622,7 @@ setup_stack (void **esp)
   bool success = false;
 
 #ifdef VM
+  frame_acquire ();
   kpage = frame_alloc (((uint8_t *) PHYS_BASE) - PGSIZE, PAL_ZERO);
 #else
   kpage = palloc_get_page (PAL_USER | PAL_ZERO);
@@ -622,12 +635,14 @@ setup_stack (void **esp)
           *esp = PHYS_BASE;
 #ifdef VM
           page_insert (((uint8_t *) PHYS_BASE) - PGSIZE);
+          frame_release ();
 #endif
         }
       else
         {
 #ifdef VM
           frame_free (kpage);
+          frame_release ();
 #else
           palloc_free_page (kpage);
 #endif

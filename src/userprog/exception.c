@@ -170,6 +170,7 @@ page_fault (struct intr_frame *f)
       upage = pg_round_down (fault_addr);
 
       /* Check supplemental page table. */
+      frame_acquire ();
       page = page_find (&t->page_table, upage);
       if (page != NULL)
         {
@@ -184,7 +185,10 @@ page_fault (struct intr_frame *f)
             success = page_load_zero (page);
 
           if (success)
-            return;
+            {
+              frame_release ();
+              return;
+            }
         }
       else
         {
@@ -201,6 +205,7 @@ page_fault (struct intr_frame *f)
                   if (success)
                     {
                       page_insert (upage);
+                      frame_release ();
                       return;
                     }
                   else
@@ -208,6 +213,7 @@ page_fault (struct intr_frame *f)
                 }
             }
         }
+      frame_release ();
     }
 #endif
 

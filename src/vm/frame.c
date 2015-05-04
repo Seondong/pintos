@@ -3,18 +3,21 @@
 #include <stddef.h>
 #include <list.h>
 #include "threads/malloc.h"
+#include "threads/synch.h"
 #include "threads/thread.h"
 #include "userprog/pagedir.h"
 #include "vm/swap.h"
 
 /* Frame table. */
 static struct list frame_table;
+static struct lock frame_lock;
 
 /* Initializes the frame table. */
 void
 frame_init (void)
 {
   list_init (&frame_table);
+  lock_init (&frame_lock);
 }
 
 /* Allocates a frame. */
@@ -94,4 +97,18 @@ frame_evict (enum palloc_flags flags)
       if (e == list_end (&frame_table))
         e = list_begin (&frame_table);
     }
+}
+
+void
+frame_acquire (void)
+{
+  if (!lock_held_by_current_thread (&frame_lock))
+    lock_acquire (&frame_lock);
+}
+
+void
+frame_release (void)
+{
+  if (lock_held_by_current_thread (&frame_lock))
+    lock_release (&frame_lock);
 }

@@ -18,5 +18,7 @@ void frame_init (void);
 void *frame_alloc (void *upage, enum palloc_flags);
 void frame_free (void *page);
 void *frame_evict (enum palloc_flags);
+void frame_acquire (void);
+void frame_release (void);
 
 #endif /* vm/frame.h */
