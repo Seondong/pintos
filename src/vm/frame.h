@@ -3,11 +3,12 @@
 
 #include <list.h>
 #include "threads/palloc.h"
+#include "threads/thread.h"
 
 /* Frame. */
 struct frame
   {
-    uint32_t *pagedir;                  /* Page directory. */
+    struct thread *thread;              /* Thread. */
     void *addr;                         /* Kernel virtual address. */
     void *upage;                        /* User virtual address. */
     struct list_elem elem;              /* List element. */

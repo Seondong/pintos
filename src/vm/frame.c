@@ -30,7 +30,7 @@ frame_alloc (void *upage, enum palloc_flags flags)
   if (page != NULL)
     {
       frame = (struct frame *) malloc (sizeof (struct frame));
-      frame->pagedir = thread_current ()->pagedir;
+      frame->thread = thread_current ();
       frame->addr = page;
       frame->upage = upage;
       list_push_back (&frame_table, &frame->elem);
@@ -72,18 +72,18 @@ frame_evict (enum palloc_flags flags)
   while (true)
     {
       frame = list_entry (e, struct frame, elem);
-      if (pagedir_is_accessed (frame->pagedir, frame->upage))
-        pagedir_set_accessed (frame->pagedir, frame->upage, false);
+      if (pagedir_is_accessed (frame->thread->pagedir, frame->upage))
+        pagedir_set_accessed (frame->thread->pagedir, frame->upage, false);
       else
         {
-          if (pagedir_is_dirty (frame->pagedir, frame->upage))
+          if (pagedir_is_dirty (frame->thread->pagedir, frame->upage))
             {
               page = page_find (frame->upage);
               page->valid = false;
               page->swap_idx = swap_out (frame->addr);
             }
           list_remove (e);
-          pagedir_clear_page (frame->pagedir, frame->upage);
+          pagedir_clear_page (frame->thread->pagedir, frame->upage);
           palloc_free_page (frame->addr);
           free (frame);
 
