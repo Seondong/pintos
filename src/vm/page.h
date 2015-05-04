@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <hash.h>
+#include "filesys/file.h"
 #include "filesys/off_t.h"
 
 /* Page. */
