@@ -9,6 +9,7 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "userprog/pagedir.h"
+#include "userprog/syscall.h"
 #include "vm/frame.h"
 #include "vm/swap.h"
 
@@ -101,13 +102,16 @@ page_load_file (struct page *page)
 
   if (page->file_read_bytes > 0)
     {
+      filesys_acquire ();
       if ((int) page->file_read_bytes != file_read_at (page->file, kpage,
                                                        page->file_read_bytes,
                                                        page->file_ofs))
         {
+          filesys_release ();
           frame_free (kpage);
           return false;
         }
+      filesys_release ();
       memset (kpage + page->file_read_bytes, 0, PGSIZE - page->file_read_bytes);
     }
 

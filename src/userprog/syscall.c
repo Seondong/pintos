@@ -39,9 +39,6 @@ static int thread_fd_insert (struct file *file);
 
 static struct lock filesys_lock;
 
-static void filesys_acquire (void);
-static void filesys_release (void);
-
 void
 syscall_init (void)
 {
@@ -493,7 +490,7 @@ thread_fd_insert (struct file *file)
 }
 
 /* Acquire the filesys_lock to usage file system. */
-static void
+void
 filesys_acquire (void)
 {
   if (!lock_held_by_current_thread (&filesys_lock))
@@ -501,7 +498,7 @@ filesys_acquire (void)
 }
 
 /* Release the filesys_lock. */
-static void
+void
 filesys_release (void)
 {
   if (lock_held_by_current_thread (&filesys_lock))
