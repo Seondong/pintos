@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <bitmap.h>
 #include "devices/disk.h"
+#include "threads/synch.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "userprog/pagedir.h"
@@ -12,6 +13,7 @@
 
 /* Swap table. */
 static struct bitmap *swap_table = NULL;
+static struct lock swap_lock;
 
 /* Initializes the swap table. */
 void
@@ -20,6 +22,7 @@ swap_init (void)
   struct disk *d = disk_get (1, 1);
   swap_table = bitmap_create (disk_size (d) * DISK_SECTOR_SIZE / PGSIZE);
   ASSERT (swap_table != NULL);
+  lock_init (&swap_lock);
 }
 
 /* Swap out a frame. */
@@ -30,12 +33,14 @@ swap_out (void *kpage)
   size_t swap_idx;
   disk_sector_t sec_no;
 
+  lock_acquire (&swap_lock);
   swap_idx = bitmap_scan_and_flip (swap_table, 0, 1, false);
   if (swap_idx == BITMAP_ERROR)
     PANIC ("swap_out: out of swap slots");
   for (sec_no = 0; sec_no < PGSIZE / DISK_SECTOR_SIZE; sec_no++)
     disk_write (d, swap_idx * PGSIZE / DISK_SECTOR_SIZE + sec_no,
                 kpage + sec_no * DISK_SECTOR_SIZE);
+  lock_release (&swap_lock);
   return swap_idx;
 }
 
@@ -48,15 +53,21 @@ swap_in (struct page *page, void *kpage)
 
   ASSERT (bitmap_test (swap_table, page->swap_idx));
 
+  lock_acquire (&swap_lock);
   for (sec_no = 0; sec_no < PGSIZE / DISK_SECTOR_SIZE; sec_no++)
     disk_read (d, page->swap_idx * PGSIZE / DISK_SECTOR_SIZE + sec_no,
                kpage + sec_no * DISK_SECTOR_SIZE);
   bitmap_set (swap_table, page->swap_idx, false);
+  lock_release (&swap_lock);
 }
 
 /* Destroys a swap. */
 void
 swap_destroy (size_t swap_idx)
 {
+  ASSERT (bitmap_test (swap_table, swap_idx));
+
+  lock_acquire (&swap_lock);
   bitmap_set (swap_table, swap_idx, false);
+  lock_release (&swap_lock);
 }
