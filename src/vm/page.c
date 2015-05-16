@@ -37,7 +37,12 @@ page_insert (const void *address)
   p->file = NULL;
   p->valid = true;
   e = hash_insert (&thread_current ()->page_table, &p->hash_elem);
-  return e != NULL ? hash_entry (e, struct page, hash_elem) : NULL;
+  if (e != NULL)
+    {
+      free (p);
+      return hash_entry (e, struct page, hash_elem);
+    }
+  return NULL;
 }
 
 /* Finds a page with the given ADDRESS from the page table. */
