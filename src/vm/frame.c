@@ -79,12 +79,14 @@ frame_evict (enum palloc_flags flags)
         pagedir_set_accessed (frame->thread->pagedir, frame->upage, false);
       else
         {
+          page = page_find (&frame->thread->page_table, frame->upage);
           if (pagedir_is_dirty (frame->thread->pagedir, frame->upage))
             {
-              page = page_find (&frame->thread->page_table, frame->upage);
               page->valid = false;
               page->swap_idx = swap_out (frame->addr);
             }
+          else
+            page->loaded = false;
           list_remove (e);
           pagedir_clear_page (frame->thread->pagedir, frame->upage);
           palloc_free_page (frame->addr);

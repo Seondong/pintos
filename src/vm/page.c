@@ -33,6 +33,7 @@ page_insert (const void *address)
   struct hash_elem *e;
 
   p->addr = (void *) address;
+  p->loaded = true;
   p->file = NULL;
   p->valid = true;
   e = hash_insert (&thread_current ()->page_table, &p->hash_elem);
@@ -90,6 +91,7 @@ page_load_file (struct page *page)
   void *kpage;
   bool success;
 
+  ASSERT (!page->loaded);
   ASSERT (page->file != NULL);
 
   if (page->file_read_bytes == 0)
@@ -134,6 +136,8 @@ page_load_zero (struct page *page)
   struct thread *t = thread_current ();
   void *kpage = frame_alloc (page->addr, PAL_ZERO);
   bool success;
+
+  ASSERT (!page->loaded);
 
   if (kpage == NULL)
     return false;

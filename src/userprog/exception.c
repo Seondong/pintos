@@ -139,7 +139,7 @@ page_fault (struct intr_frame *f)
   struct page *page;
   uint8_t *upage;
   uint8_t *kpage;
-  bool success;
+  bool success = false;
 #endif
 
   /* Obtain faulting address, the virtual address that was
@@ -177,12 +177,18 @@ page_fault (struct intr_frame *f)
           /* Swap. */
           if (!page->valid)
             success = page_load_swap (page);
-          /* File. */
-          else if (page->file != NULL)
-            success = page_load_file (page);
-          /* Zero. */
-          else
-            success = page_load_zero (page);
+          else if (!page->loaded)
+            {
+              /* File. */
+              if (page->file != NULL)
+                success = page_load_file (page);
+              /* Zero. */
+              else
+                success = page_load_zero (page);
+
+              if (success)
+                page->loaded = true;
+            }
 
           if (success)
             {

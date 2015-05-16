@@ -550,33 +550,26 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 
 #ifdef VM
       struct page *page;
-#endif
 
-      /* Get a page of memory. */
-#ifdef VM
-      uint8_t *kpage;
       frame_acquire ();
-      kpage = frame_alloc (upage, 0);
+      page_insert (upage);
+      page = page_find (&thread_current ()->page_table, upage);
+      page->loaded = false;
+      page->file = file;
+      page->file_ofs = current_ofs;
+      page->file_read_bytes = page_read_bytes;
+      page->file_writable = writable;
+      frame_release ();
 #else
+      /* Get a page of memory. */
       uint8_t *kpage = palloc_get_page (PAL_USER);
-#endif
       if (kpage == NULL)
-        {
-#ifdef VM
-          frame_release ();
-#endif
-          return false;
-        }
+        return false;
 
       /* Load this page. */
       if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
         {
-#ifdef VM
-          frame_free (kpage);
-          frame_release ();
-#else
           palloc_free_page (kpage);
-#endif
           return false;
         }
       memset (kpage + page_read_bytes, 0, page_zero_bytes);
@@ -584,22 +577,9 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       /* Add the page to the process's address space. */
       if (!install_page (upage, kpage, writable))
         {
-#ifdef VM
-          frame_free (kpage);
-          frame_release ();
-#else
           palloc_free_page (kpage);
-#endif
           return false;
         }
-#ifdef VM
-      page_insert (upage);
-      page = page_find (&thread_current ()->page_table, upage);
-      page->file = file;
-      page->file_ofs = current_ofs;
-      page->file_read_bytes = page_read_bytes;
-      page->file_writable = writable;
-      frame_release ();
 #endif
 
       /* Advance. */

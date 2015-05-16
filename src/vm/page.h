@@ -12,6 +12,7 @@
 struct page
   {
     void *addr;                         /* Virtual address. */
+    bool loaded;                        /* Page is loaded. */
     struct file *file;                  /* Loaded file. */
     off_t file_ofs;                     /* Offset of the file. */
     uint32_t file_read_bytes;           /* Number of read bytes from file. */
