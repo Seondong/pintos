@@ -2,10 +2,13 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <list.h>
+#include <user/syscall.h>
+#include "filesys/file.h"
 #include "threads/malloc.h"
 #include "threads/synch.h"
 #include "threads/thread.h"
 #include "userprog/pagedir.h"
+#include "userprog/syscall.h"
 #include "vm/swap.h"
 
 /* Frame table. */
@@ -82,8 +85,19 @@ frame_evict (enum palloc_flags flags)
           page = page_find (&frame->thread->page_table, frame->upage);
           if (pagedir_is_dirty (frame->thread->pagedir, frame->upage))
             {
-              page->valid = false;
-              page->swap_idx = swap_out (frame->addr);
+              if (page->mapid != MAP_FAILED)
+                {
+                  filesys_acquire ();
+                  file_write_at (page->file, page->addr, page->file_read_bytes,
+                                 page->file_ofs);
+                  filesys_release ();
+                  page->loaded = false;
+                }
+              else
+                {
+                  page->valid = false;
+                  page->swap_idx = swap_out (frame->addr);
+                }
             }
           else
             page->loaded = false;

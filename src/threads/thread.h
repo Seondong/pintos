@@ -116,6 +116,8 @@ struct thread
 
 #ifdef VM
     struct hash page_table;             /* Supplemental page table. */
+    int max_mapid;                      /* The largest mapping identifier. */
+    struct list mmap_list;              /* List of memory mapped files. */
 #endif
 
     /* Owned by thread.c. */

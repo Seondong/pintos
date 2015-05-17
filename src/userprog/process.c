@@ -86,6 +86,9 @@ start_process (void *f_name)
   /* Initialize supplemental page table. */
   if (!page_init (&curr->page_table))
     sys_exit (-1);
+  /* Initialize the list of memory mapped files. */
+  curr->max_mapid = 0;
+  list_init (&curr->mmap_list);
 #endif
 
   /* Initialize interrupt frame and load executable. */
@@ -179,7 +182,9 @@ process_exit (void)
 
 #ifdef VM
   frame_acquire ();
+  filesys_acquire ();
   page_destroy (&curr->page_table);
+  filesys_release ();
   frame_release ();
 #endif
 
