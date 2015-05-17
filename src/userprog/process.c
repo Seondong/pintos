@@ -181,11 +181,7 @@ process_exit (void)
     }
 
 #ifdef VM
-  frame_acquire ();
-  filesys_acquire ();
   page_destroy (&curr->page_table);
-  filesys_release ();
-  frame_release ();
 #endif
 
   /* Destroy the current process's page directory and switch back

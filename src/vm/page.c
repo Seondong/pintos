@@ -63,7 +63,11 @@ page_find (struct hash *page_table, const void *address)
 void
 page_destroy (struct hash *page_table)
 {
+  frame_acquire ();
+  filesys_acquire ();
   hash_destroy (page_table, page_destructor);
+  filesys_release ();
+  frame_release ();
 }
 
 /* Load the given PAGE from swap. */
