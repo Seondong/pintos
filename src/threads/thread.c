@@ -304,11 +304,20 @@ thread_tid (void)
 void
 thread_exit (void)
 {
+  struct thread *curr = thread_current ();
+  struct lock *lock;
+
   ASSERT (!intr_context ());
 
 #ifdef USERPROG
   process_exit ();
 #endif
+
+  while (!list_empty (&curr->locks))
+    {
+      lock = list_entry (list_pop_front (&curr->locks), struct lock, elem);
+      lock_release (lock);
+    }
 
   /* Just set our status to dying and schedule another process.
      We will be destroyed during the call to schedule_tail(). */
