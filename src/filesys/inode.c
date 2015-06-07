@@ -222,6 +222,7 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
 
       /* Read sector through buffer cache. */
       cache_read (sector_idx, buffer + bytes_read, sector_ofs, chunk_size);
+      cache_request (sector_idx + 1);
 
       /* Advance. */
       size -= chunk_size;

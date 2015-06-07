@@ -15,18 +15,28 @@
 #define CACHE_SIZE 64
 #define CACHE_WRITE_BEHIND_INTERVAL 50
 
+struct read_ahead_entry
+  {
+    disk_sector_t sec_no;               /* Sector number of disk. */
+    struct list_elem elem;              /* List element. */
+  };
+
 static struct cache *cache_insert (disk_sector_t sec_no);
 static struct cache *cache_find (disk_sector_t sec_no);
 static void cache_flush (struct cache *cache);
 static void cache_flush_all (void);
 static void cache_evict (void);
 static void cache_write_behind (void *aux UNUSED);
+static void cache_read_ahead (void *aux UNUSED);
 static void cache_acquire (void);
 static void cache_release (void);
 
 static struct list cache_list;
 static struct list cache_free_list;
 static struct lock cache_lock;
+static struct list read_ahead_list;
+static struct lock read_ahead_lock;
+static struct condition read_ahead_cond;
 
 /* Initializes the buffer cache. */
 void
@@ -45,9 +55,15 @@ cache_init (void)
       list_push_front (&cache_free_list, &cache->elem);
     }
   lock_init (&cache_lock);
+  list_init (&read_ahead_list);
+  lock_init (&read_ahead_lock);
+  cond_init (&read_ahead_cond);
 
   tid = thread_create ("cache_write_behind", PRI_DEFAULT,
                        cache_write_behind, NULL);
+  ASSERT (tid != TID_ERROR);
+
+  tid = thread_create ("cache_read_ahead", PRI_DEFAULT, cache_read_ahead, NULL);
   ASSERT (tid != TID_ERROR);
 }
 
@@ -63,6 +79,7 @@ cache_read (disk_sector_t sec_no, void *buffer, int sector_ofs, int size)
       cache = cache_insert (sec_no);
       lock_acquire (&cache->lock);
       disk_read (filesys_disk, sec_no, cache->buffer);
+      cache->loaded = true;
     }
   else
     lock_acquire (&cache->lock);
@@ -87,17 +104,39 @@ cache_write (disk_sector_t sec_no, const void *buffer, int sector_ofs, int size)
     }
   else
     lock_acquire (&cache->lock);
+  cache->loaded = true;
   cache->dirty = true;
   memcpy (cache->buffer + sector_ofs, (const uint8_t *) buffer, size);
   lock_release (&cache->lock);
   cache_release ();
 }
 
+void
+cache_request (disk_sector_t sec_no)
+{
+  struct read_ahead_entry *rae;
+
+  cache_acquire ();
+  if (cache_find (sec_no) != NULL)
+    {
+      cache_release ();
+      return;
+    }
+  cache_release ();
+
+  rae = (struct read_ahead_entry *) malloc (sizeof (struct read_ahead_entry));
+  rae->sec_no = sec_no;
+  lock_acquire (&read_ahead_lock);
+  list_push_back (&read_ahead_list, &rae->elem);
+  cond_signal (&read_ahead_cond, &read_ahead_lock);
+  lock_release (&read_ahead_lock);
+}
+
 static void
 cache_flush (struct cache *cache)
 {
   lock_acquire (&cache->lock);
-  if (cache->dirty)
+  if (cache->loaded && cache->dirty)
     {
       disk_write (filesys_disk, cache->sec_no, cache->buffer);
       cache->dirty = false;
@@ -150,6 +189,7 @@ cache_insert (disk_sector_t sec_no)
     cache_evict ();
   cache = list_entry (list_pop_back (&cache_free_list), struct cache, elem);
   cache->sec_no = sec_no;
+  cache->loaded = false;
   cache->dirty = false;
   list_push_front (&cache_list, &cache->elem);
   return cache;
@@ -165,7 +205,7 @@ cache_find (disk_sector_t sec_no)
        e = list_next (e))
     {
       cache = list_entry (e, struct cache, elem);
-      if (cache->sec_no == sec_no)
+      if (cache->loaded && cache->sec_no == sec_no)
         {
           lock_acquire (&cache->lock);
           list_remove (e);
@@ -194,6 +234,34 @@ cache_write_behind (void *aux UNUSED)
     {
       timer_sleep (CACHE_WRITE_BEHIND_INTERVAL);
       cache_flush_all ();
+    }
+}
+
+static void
+cache_read_ahead (void *aux UNUSED)
+{
+  struct read_ahead_entry *rae;
+  struct cache *cache;
+
+  while (true)
+    {
+      lock_acquire (&read_ahead_lock);
+      while (list_empty (&read_ahead_list))
+        cond_wait (&read_ahead_cond, &read_ahead_lock);
+      rae = list_entry (list_pop_front (&read_ahead_list),
+                        struct read_ahead_entry, elem);
+      lock_release (&read_ahead_lock);
+
+      cache = cache_find (rae->sec_no);
+      if (cache == NULL)
+        {
+          cache = cache_insert (rae->sec_no);
+          lock_acquire (&cache->lock);
+          disk_read (filesys_disk, cache->sec_no, cache->buffer);
+          cache->loaded = true;
+          lock_release (&cache->lock);
+        }
+      free (rae);
     }
 }
 

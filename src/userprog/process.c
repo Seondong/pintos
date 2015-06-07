@@ -167,6 +167,14 @@ process_exit (void)
   struct list_elem *e;
   struct thread_child *child;
 
+#ifdef VM
+  frame_acquire ();
+  filesys_acquire ();
+  page_destroy (&curr->page_table);
+  filesys_release ();
+  frame_release ();
+#endif
+
   for (e = list_begin (&curr->parent->child_list);
        e != list_end (&curr->parent->child_list); e = list_next (e))
     {
@@ -179,10 +187,6 @@ process_exit (void)
           break;
         }
     }
-
-#ifdef VM
-  page_destroy (&curr->page_table);
-#endif
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
