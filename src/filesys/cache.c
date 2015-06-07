@@ -146,14 +146,12 @@ cache_insert (disk_sector_t sec_no)
 {
   struct cache *cache;
 
-  cache_acquire ();
   if (list_empty (&cache_free_list))
     cache_evict ();
   cache = list_entry (list_pop_back (&cache_free_list), struct cache, elem);
   cache->sec_no = sec_no;
   cache->dirty = false;
   list_push_front (&cache_list, &cache->elem);
-  cache_release ();
   return cache;
 }
 
@@ -163,20 +161,19 @@ cache_find (disk_sector_t sec_no)
   struct list_elem *e;
   struct cache *cache;
 
-  cache_acquire ();
   for (e = list_begin (&cache_list); e != list_end (&cache_list);
        e = list_next (e))
     {
       cache = list_entry (e, struct cache, elem);
       if (cache->sec_no == sec_no)
         {
+          lock_acquire (&cache->lock);
           list_remove (e);
           list_push_front (&cache_list, e);
-          lock_release (&cache_lock);
+          lock_release (&cache->lock);
           return cache;
         }
     }
-  cache_release ();
   return NULL;
 }
 
