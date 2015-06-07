@@ -1,20 +1,26 @@
 #include "filesys/cache.h"
+#include <debug.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 #include <list.h>
 #include "devices/disk.h"
+#include "devices/timer.h"
 #include "filesys/filesys.h"
 #include "threads/malloc.h"
 #include "threads/synch.h"
 #include "threads/thread.h"
 
 #define CACHE_SIZE 64
+#define CACHE_WRITE_BEHIND_INTERVAL 50
 
 static struct cache *cache_insert (disk_sector_t sec_no);
 static struct cache *cache_find (disk_sector_t sec_no);
+static void cache_flush (struct cache *cache);
+static void cache_flush_all (void);
 static void cache_evict (void);
+static void cache_write_behind (void *aux UNUSED);
 static void cache_acquire (void);
 static void cache_release (void);
 
@@ -28,6 +34,7 @@ cache_init (void)
 {
   struct cache *cache;
   int i;
+  tid_t tid;
 
   list_init (&cache_list);
   list_init (&cache_free_list);
@@ -38,6 +45,10 @@ cache_init (void)
       list_push_front (&cache_free_list, &cache->elem);
     }
   lock_init (&cache_lock);
+
+  tid = thread_create ("cache_write_behind", PRI_DEFAULT,
+                       cache_write_behind, NULL);
+  ASSERT (tid != TID_ERROR);
 }
 
 void
@@ -82,6 +93,34 @@ cache_write (disk_sector_t sec_no, const void *buffer, int sector_ofs, int size)
   cache_release ();
 }
 
+static void
+cache_flush (struct cache *cache)
+{
+  lock_acquire (&cache->lock);
+  if (cache->dirty)
+    {
+      disk_write (filesys_disk, cache->sec_no, cache->buffer);
+      cache->dirty = false;
+    }
+  lock_release (&cache->lock);
+}
+
+static void
+cache_flush_all (void)
+{
+  struct list_elem *e;
+  struct cache *cache;
+
+  cache_acquire ();
+  for (e = list_begin (&cache_list); e != list_end (&cache_list);
+       e = list_next (e))
+    {
+      cache = list_entry (e, struct cache, elem);
+      cache_flush (cache);
+    }
+  cache_release ();
+}
+
 void
 cache_clear (void)
 {
@@ -91,13 +130,7 @@ cache_clear (void)
   while (!list_empty (&cache_list))
     {
       cache = list_entry (list_pop_back (&cache_list), struct cache, elem);
-      lock_acquire (&cache->lock);
-      if (cache->dirty)
-        {
-          disk_write (filesys_disk, cache->sec_no, cache->buffer);
-          cache->dirty = false;
-        }
-      lock_release (&cache->lock);
+      cache_flush (cache);
       free (cache);
     }
   while (!list_empty (&cache_free_list))
@@ -153,14 +186,18 @@ cache_evict (void)
   struct cache *cache;
 
   cache = list_entry (list_pop_back (&cache_list), struct cache, elem);
-  lock_acquire (&cache->lock);
-  if (cache->dirty)
-    {
-      disk_write (filesys_disk, cache->sec_no, cache->buffer);
-      cache->dirty = false;
-    }
-  lock_release (&cache->lock);
+  cache_flush (cache);
   list_push_front (&cache_free_list, &cache->elem);
+}
+
+static void
+cache_write_behind (void *aux UNUSED)
+{
+  while (true)
+    {
+      timer_sleep (CACHE_WRITE_BEHIND_INTERVAL);
+      cache_flush_all ();
+    }
 }
 
 static void
