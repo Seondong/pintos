@@ -13,6 +13,8 @@
 #include "vm/page.h"
 #endif
 
+#define MAX_STACK_SIZE 8 * 1024 * 1024
+
 /* Number of page faults processed. */
 static long long page_fault_cnt;
 
@@ -198,6 +200,9 @@ page_fault (struct intr_frame *f)
         }
       else
         {
+          if (!user && f->esp >= PHYS_BASE - MAX_STACK_SIZE)
+            f->esp = thread_current ()->esp;
+
           /* Stack growth. */
           if (is_user_vaddr (fault_addr)
               && (uint8_t *) f->esp - 32 <= (uint8_t *) fault_addr)

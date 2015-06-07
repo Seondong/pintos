@@ -112,6 +112,7 @@ struct thread
     struct list fd_list;                /* List of file descriptors. */
     struct thread *parent;              /* Parent thread. */
     struct list child_list;             /* List of child threads. */
+    void *esp;                          /* ESP register. */
 #endif
 
 #ifdef VM

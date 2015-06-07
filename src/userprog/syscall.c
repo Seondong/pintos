@@ -77,6 +77,7 @@ syscall_handler (struct intr_frame *f)
 
   if (!is_user_vaddr ((int *) f->esp))
     sys_exit (-1);
+  thread_current ()->esp = f->esp;
   syscall_nr = *(int *) f->esp;
 
   switch (syscall_nr)
