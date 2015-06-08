@@ -7,6 +7,7 @@
 #include "devices/disk.h"
 #include "threads/synch.h"
 
+/* Buffer cache. */
 struct cache
   {
     uint8_t buffer[DISK_SECTOR_SIZE];   /* Buffer. */

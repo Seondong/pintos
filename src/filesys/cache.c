@@ -67,6 +67,8 @@ cache_init (void)
   ASSERT (tid != TID_ERROR);
 }
 
+/* Read SIZE bytes from SEC_NO sector into BUFFER using buffer
+   cache. */
 void
 cache_read (disk_sector_t sec_no, void *buffer, int sector_ofs, int size)
 {
@@ -88,6 +90,8 @@ cache_read (disk_sector_t sec_no, void *buffer, int sector_ofs, int size)
   cache_release ();
 }
 
+/* Write SIZE bytes from BUFFER into SEC_NO sector using buffer
+   cache. */
 void
 cache_write (disk_sector_t sec_no, const void *buffer, int sector_ofs, int size)
 {
@@ -111,6 +115,7 @@ cache_write (disk_sector_t sec_no, const void *buffer, int sector_ofs, int size)
   cache_release ();
 }
 
+/* Request a read-ahead SEC_NO sector into buffer cache. */
 void
 cache_request (disk_sector_t sec_no)
 {
@@ -132,6 +137,7 @@ cache_request (disk_sector_t sec_no)
   lock_release (&read_ahead_lock);
 }
 
+/* Flush modified CACHE into disk. */
 static void
 cache_flush (struct cache *cache)
 {
@@ -144,6 +150,7 @@ cache_flush (struct cache *cache)
   lock_release (&cache->lock);
 }
 
+/* Flush all modified cache into disk. */
 static void
 cache_flush_all (void)
 {
@@ -160,6 +167,7 @@ cache_flush_all (void)
   cache_release ();
 }
 
+/* Destroy buffer cache. */
 void
 cache_clear (void)
 {
@@ -180,6 +188,7 @@ cache_clear (void)
   cache_release ();
 }
 
+/* Make a cache to store SEC_NO disk sector. */
 static struct cache *
 cache_insert (disk_sector_t sec_no)
 {
@@ -195,6 +204,7 @@ cache_insert (disk_sector_t sec_no)
   return cache;
 }
 
+/* Find a cache holding SEC_NO disk sector. */
 static struct cache *
 cache_find (disk_sector_t sec_no)
 {
@@ -217,6 +227,7 @@ cache_find (disk_sector_t sec_no)
   return NULL;
 }
 
+/* Flush the oldest cache and remove it. */
 static void
 cache_evict (void)
 {
@@ -227,6 +238,7 @@ cache_evict (void)
   list_push_front (&cache_free_list, &cache->elem);
 }
 
+/* Write-behind thread for buffer cache. */
 static void
 cache_write_behind (void *aux UNUSED)
 {
@@ -237,6 +249,7 @@ cache_write_behind (void *aux UNUSED)
     }
 }
 
+/* Read-ahead thread for buffer cache. */
 static void
 cache_read_ahead (void *aux UNUSED)
 {
