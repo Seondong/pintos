@@ -263,6 +263,7 @@ cache_read_ahead (void *aux UNUSED)
                         struct read_ahead_entry, elem);
       lock_release (&read_ahead_lock);
 
+      lock_acquire (&cache_lock);
       cache = cache_find (rae->sec_no);
       if (cache == NULL)
         {
@@ -272,6 +273,7 @@ cache_read_ahead (void *aux UNUSED)
           cache->loaded = true;
           lock_release (&cache->lock);
         }
+      lock_release (&cache_lock);
       free (rae);
     }
 }
