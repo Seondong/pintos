@@ -28,8 +28,6 @@ static void cache_flush_all (void);
 static void cache_evict (void);
 static void cache_write_behind (void *aux UNUSED);
 static void cache_read_ahead (void *aux UNUSED);
-static void cache_acquire (void);
-static void cache_release (void);
 
 static struct list cache_list;
 static struct list cache_free_list;
@@ -74,7 +72,7 @@ cache_read (disk_sector_t sec_no, void *buffer, int sector_ofs, int size)
 {
   struct cache *cache;
 
-  cache_acquire ();
+  lock_acquire (&cache_lock);
   cache = cache_find (sec_no);
   if (cache == NULL)
     {
@@ -87,7 +85,7 @@ cache_read (disk_sector_t sec_no, void *buffer, int sector_ofs, int size)
     lock_acquire (&cache->lock);
   memcpy ((uint8_t *) buffer, cache->buffer + sector_ofs, size);
   lock_release (&cache->lock);
-  cache_release ();
+  lock_release (&cache_lock);
 }
 
 /* Write SIZE bytes from BUFFER into SEC_NO sector using buffer
@@ -97,7 +95,7 @@ cache_write (disk_sector_t sec_no, const void *buffer, int sector_ofs, int size)
 {
   struct cache *cache;
 
-  cache_acquire ();
+  lock_acquire (&cache_lock);
   cache = cache_find (sec_no);
   if (cache == NULL)
     {
@@ -112,7 +110,7 @@ cache_write (disk_sector_t sec_no, const void *buffer, int sector_ofs, int size)
   cache->dirty = true;
   memcpy (cache->buffer + sector_ofs, (const uint8_t *) buffer, size);
   lock_release (&cache->lock);
-  cache_release ();
+  lock_release (&cache_lock);
 }
 
 /* Request a read-ahead SEC_NO sector into buffer cache. */
@@ -121,13 +119,13 @@ cache_request (disk_sector_t sec_no)
 {
   struct read_ahead_entry *rae;
 
-  cache_acquire ();
+  lock_acquire (&cache_lock);
   if (cache_find (sec_no) != NULL)
     {
-      cache_release ();
+      lock_release (&cache_lock);
       return;
     }
-  cache_release ();
+  lock_release (&cache_lock);
 
   rae = (struct read_ahead_entry *) malloc (sizeof (struct read_ahead_entry));
   rae->sec_no = sec_no;
@@ -157,14 +155,14 @@ cache_flush_all (void)
   struct list_elem *e;
   struct cache *cache;
 
-  cache_acquire ();
+  lock_acquire (&cache_lock);
   for (e = list_begin (&cache_list); e != list_end (&cache_list);
        e = list_next (e))
     {
       cache = list_entry (e, struct cache, elem);
       cache_flush (cache);
     }
-  cache_release ();
+  lock_release (&cache_lock);
 }
 
 /* Destroy buffer cache. */
@@ -173,7 +171,7 @@ cache_clear (void)
 {
   struct cache *cache;
 
-  cache_acquire ();
+  lock_acquire (&cache_lock);
   while (!list_empty (&cache_list))
     {
       cache = list_entry (list_pop_back (&cache_list), struct cache, elem);
@@ -185,7 +183,7 @@ cache_clear (void)
       cache = list_entry (list_pop_back (&cache_free_list), struct cache, elem);
       free (cache);
     }
-  cache_release ();
+  lock_release (&cache_lock);
 }
 
 /* Make a cache to store SEC_NO disk sector. */
@@ -276,18 +274,4 @@ cache_read_ahead (void *aux UNUSED)
         }
       free (rae);
     }
-}
-
-static void
-cache_acquire (void)
-{
-  if (!lock_held_by_current_thread (&cache_lock))
-    lock_acquire (&cache_lock);
-}
-
-static void
-cache_release (void)
-{
-  if (lock_held_by_current_thread (&cache_lock))
-    lock_release (&cache_lock);
 }
