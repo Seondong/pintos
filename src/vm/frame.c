@@ -118,13 +118,11 @@ frame_evict (enum palloc_flags flags)
 void
 frame_acquire (void)
 {
-  if (!lock_held_by_current_thread (&frame_lock))
-    lock_acquire (&frame_lock);
+  lock_acquire (&frame_lock);
 }
 
 void
 frame_release (void)
 {
-  if (lock_held_by_current_thread (&frame_lock))
-    lock_release (&frame_lock);
+  lock_release (&frame_lock);
 }
