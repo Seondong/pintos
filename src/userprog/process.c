@@ -163,15 +163,34 @@ void
 process_exit (void)
 {
   struct thread *curr = thread_current ();
+  struct thread_fd *tfd;
   uint32_t *pd;
   struct list_elem *e;
   struct thread_child *child;
 
+  if (!list_empty (&curr->fd_list))
+    {
+      e = list_front (&curr->fd_list);
+      while (e != list_end (&curr->fd_list))
+        {
+          tfd = list_entry (e, struct thread_fd, elem);
+          e = list_remove (e);
+          if (tfd->file != NULL)
+            {
+              filesys_acquire ();
+              file_close (tfd->file);
+              filesys_release ();
+            }
+          free (tfd);
+        }
+    }
+  filesys_acquire ();
+  file_close (curr->executable);
+  filesys_release ();
+
 #ifdef VM
   frame_acquire ();
-  filesys_acquire ();
   page_destroy (&curr->page_table);
-  filesys_release ();
   frame_release ();
 #endif
 

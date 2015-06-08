@@ -199,8 +199,6 @@ sys_exit (int status)
   size_t size = strlen (name) + 1;
   char *name_copy = (char *) malloc (size * sizeof (char));
   char *token, *save_ptr;
-  struct thread_fd *tfd;
-  struct list_elem *e;
 
 #if PRINT_DEBUG
   printf ("SYS_EXIT: status: %d\n", status);
@@ -210,25 +208,7 @@ sys_exit (int status)
   token = strtok_r (name_copy, " ", &save_ptr);
   printf ("%s: exit(%d)\n", token, status);
   free (name_copy);
-  if (!list_empty (&curr->fd_list))
-    {
-      e = list_front (&curr->fd_list);
-      while (e != list_end (&curr->fd_list))
-        {
-          tfd = list_entry (e, struct thread_fd, elem);
-          e = list_remove (e);
-          if (tfd->file != NULL)
-            {
-              filesys_acquire ();
-              file_close (tfd->file);
-              filesys_release ();
-            }
-          free (tfd);
-        }
-    }
-  filesys_acquire ();
-  file_close (curr->executable);
-  filesys_release ();
+
   curr->exit_status = status;
   thread_exit ();
 }
@@ -641,14 +621,12 @@ thread_fd_insert (struct file *file)
 void
 filesys_acquire (void)
 {
-  if (!lock_held_by_current_thread (&filesys_lock))
-    lock_acquire (&filesys_lock);
+  lock_acquire (&filesys_lock);
 }
 
 /* Release the filesys_lock. */
 void
 filesys_release (void)
 {
-  if (lock_held_by_current_thread (&filesys_lock))
-    lock_release (&filesys_lock);
+  lock_release (&filesys_lock);
 }
