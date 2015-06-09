@@ -496,18 +496,22 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
 
 /* Writes SIZE bytes from BUFFER into INODE, starting at OFFSET.
    Returns the number of bytes actually written, which may be
-   less than SIZE if end of file is reached or an error occurs.
-   (Normally a write at end of file would extend the inode, but
-   growth is not yet implemented.) */
+   less than SIZE if an error occurs. */
 off_t
 inode_write_at (struct inode *inode, const void *buffer_, off_t size,
                 off_t offset)
 {
   const uint8_t *buffer = buffer_;
   off_t bytes_written = 0;
+  off_t length;
 
   if (inode->deny_write_cnt)
     return 0;
+
+  /* Extend file. */
+  length = inode_length (inode);
+  if (offset + size > length)
+    inode_extend (inode, offset + size - length);
 
   while (size > 0)
     {
