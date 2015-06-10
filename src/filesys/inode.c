@@ -4,10 +4,12 @@
 #include <round.h>
 #include <string.h>
 #include "filesys/cache.h"
+#include "filesys/directory.h"
 #include "filesys/filesys.h"
 #include "filesys/free-map.h"
 #include "threads/malloc.h"
 #include "threads/synch.h"
+#include "threads/thread.h"
 
 /* Identifies an inode. */
 #define INODE_MAGIC 0x494e4f44
@@ -17,6 +19,7 @@
 #define INODE_DOUBLE_INDIRECT_BLOCKS 128 * 128
 #define INODE_OFFSET_LENGTH 0
 #define INODE_OFFSET_IS_DIR 8
+#define INODE_OFFSET_PARENT 12
 
 /* On-disk inode.
    Must be exactly DISK_SECTOR_SIZE bytes long. */
@@ -25,11 +28,12 @@ struct inode_disk
     off_t length;                       /* File size in bytes. */
     size_t sector_count;                /* Number of used disk sectors. */
     bool is_dir;                        /* This is directory or not. */
+    disk_sector_t parent;               /* Sector number of parent directory. */
     disk_sector_t directs[INODE_DIRECT_BLOCKS];     /* Direct blocks. */
     disk_sector_t indirect;             /* Single indirect block. */
     disk_sector_t double_indirect;      /* Double indirect block. */
     unsigned magic;                     /* Magic number. */
-    uint32_t unused[110];               /* Not used. */
+    uint32_t unused[109];               /* Not used. */
   };
 
 /* Indirect block.
@@ -262,6 +266,7 @@ inode_create (disk_sector_t sector, off_t length, bool is_dir)
       disk_inode->length = 0;
       disk_inode->sector_count = 0;
       disk_inode->is_dir = is_dir;
+      disk_inode->parent = dir_get_inode (thread_current ()->dir)->sector;
       disk_inode->magic = INODE_MAGIC;
 
       cache_write (sector, disk_inode, 0, DISK_SECTOR_SIZE);
@@ -332,6 +337,15 @@ inode_is_dir (const struct inode *inode)
   cache_read (inode->sector, &is_dir, INODE_OFFSET_IS_DIR, sizeof (bool));
 
   return is_dir;
+}
+
+disk_sector_t
+inode_get_parent (const struct inode *inode)
+{
+  disk_sector_t parent;
+  cache_read (inode->sector, &parent, INODE_OFFSET_PARENT,
+              sizeof (disk_sector_t));
+  return parent;
 }
 
 /* Clear the INODE data. */
