@@ -122,7 +122,7 @@ filesys_open (const char *name)
   if (dir != NULL)
     {
       if (filename[0] == 0)
-        return file_open (dir->inode);
+        return file_open (dir_get_inode (dir));
 
       dir_lookup (dir, filename, &inode);
       dir_close (dir);
