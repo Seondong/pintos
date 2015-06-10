@@ -11,7 +11,6 @@
 struct dir_entry
   {
     disk_sector_t inode_sector;         /* Sector number of header. */
-    disk_sector_t parent;               /* Sector number of parent directory. */
     char name[NAME_MAX + 1];            /* Null terminated file name. */
     bool in_use;                        /* In use or free? */
   };
@@ -167,7 +166,6 @@ dir_add (struct dir *dir, const char *name, disk_sector_t inode_sector)
   e.in_use = true;
   strlcpy (e.name, name, sizeof e.name);
   e.inode_sector = inode_sector;
-  e.parent = dir->inode->sector;
   success = inode_write_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
 
  done:
