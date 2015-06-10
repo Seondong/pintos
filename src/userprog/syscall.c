@@ -604,7 +604,12 @@ sys_chdir (const char *dir)
 static bool
 sys_mkdir (const char *dir)
 {
-  return filesys_create (dir, 0, true);
+  bool success;
+
+  filesys_acquire ();
+  success = filesys_create (dir, 0, true);
+  filesys_release ();
+  return success;
 }
 #endif
 
