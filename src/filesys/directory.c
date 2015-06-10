@@ -318,3 +318,15 @@ dir_path_and_name (const char *dir, char **path, char **name)
 
   return true;
 }
+
+bool
+dir_empty (const struct dir *dir)
+{
+  char name[NAME_MAX + 1];
+  struct dir dir_copy;
+
+  dir_copy.inode = dir->inode;
+  dir_copy.pos = 0;
+
+  return !dir_readdir (&dir_copy, name);
+}

@@ -138,10 +138,53 @@ filesys_open (const char *name)
 bool
 filesys_remove (const char *name)
 {
-  struct dir *dir = dir_open_root ();
-  bool success = dir != NULL && dir_remove (dir, name);
-  dir_close (dir);
+  char *path = NULL;
+  char *filename = NULL;
+  struct dir *dir;
+  struct inode *inode;
+  struct dir *target_dir;
+  bool success = false;
 
+  if (name == NULL)
+    return false;
+
+  if (!dir_path_and_name (name, &path, &filename))
+    return false;
+
+  if (path == NULL)
+    dir = dir_reopen (thread_current ()->dir);
+  else
+    dir = dir_parse (path);
+
+  if (dir != NULL)
+    {
+      /* Root directory. */
+      if (filename[0] == 0)
+        return false;
+
+      dir_lookup (dir, filename, &inode);
+
+      /* Current working directory. */
+      if (inode == dir_get_inode (thread_current ()->dir))
+        return false;
+
+      if (inode_is_dir (inode))
+        {
+          target_dir = dir_open (inode);
+          if (dir_empty (target_dir))
+            {
+              dir_close (target_dir);
+              if (inode->open_cnt <= 1)
+                success = dir_remove (dir, filename);
+            }
+          else
+            dir_close (target_dir);
+        }
+      else
+        success = dir_remove (dir, filename);
+
+      dir_close (dir);
+    }
   return success;
 }
 
