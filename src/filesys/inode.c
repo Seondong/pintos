@@ -53,7 +53,6 @@ struct inode
     int open_cnt;                       /* Number of openers. */
     bool removed;                       /* True if deleted, false otherwise. */
     int deny_write_cnt;                 /* 0: writes ok, >0: deny writes. */
-    struct inode_disk data;             /* Inode content. */
     struct lock lock;                   /* Lock for writing data. */
   };
 
@@ -313,7 +312,6 @@ inode_open (disk_sector_t sector)
   inode->open_cnt = 1;
   inode->deny_write_cnt = 0;
   inode->removed = false;
-  cache_read (inode->sector, &inode->data, 0, DISK_SECTOR_SIZE);
   lock_init (&inode->lock);
   return inode;
 }
