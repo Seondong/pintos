@@ -48,6 +48,9 @@ static void sys_munmap (mapid_t mapid);
 #ifdef FILESYS
 static bool sys_chdir (const char *dir);
 static bool sys_mkdir (const char *dir);
+static bool sys_readdir (int fd, char name[READDIR_MAX_LEN + 1]);
+static bool sys_isdir (int fd);
+static int sys_inumber (int fd);
 #endif
 
 static struct file *thread_fd_get (int fd);
@@ -83,6 +86,7 @@ syscall_handler (struct intr_frame *f)
 #endif
 #ifdef FILESYS
   char *dir;
+  char *name;
 #endif
 
   if (!is_user_vaddr ((int *) f->esp))
@@ -200,6 +204,25 @@ syscall_handler (struct intr_frame *f)
         sys_exit (-1);
       dir = *(char **) arg1;
       f->eax = sys_mkdir (dir);
+      break;
+    case SYS_READDIR:
+      if (!is_user_vaddr (arg2))
+        sys_exit (-1);
+      fd = *(int *) arg1;
+      name = *(char **) arg2;
+      f->eax = sys_readdir (fd, name);
+      break;
+    case SYS_ISDIR:
+      if (!is_user_vaddr (arg1))
+        sys_exit (-1);
+      fd = *(int *) arg1;
+      f->eax = sys_isdir (fd);
+      break;
+    case SYS_INUMBER:
+      if (!is_user_vaddr (arg1))
+        sys_exit (-1);
+      fd = *(int *) arg1;
+      f->eax = sys_inumber (fd);
       break;
 #endif
     }
@@ -610,6 +633,52 @@ sys_mkdir (const char *dir)
   success = filesys_create (dir, 0, true);
   filesys_release ();
   return success;
+}
+#endif
+
+#ifdef FILESYS
+static bool
+sys_readdir (int fd, char name[READDIR_MAX_LEN + 1])
+{
+  struct file *file = thread_fd_get (fd);
+  struct dir dir;
+  bool success;
+
+  if (file == NULL)
+    sys_exit (-1);
+
+  dir.inode = file_get_inode (file);
+  filesys_acquire ();
+  dir.pos = file_tell (file);
+  success = dir_readdir (&dir, name);
+  if (success)
+    file_seek (file, dir.pos);
+  filesys_release ();
+  return success;
+}
+#endif
+
+#ifdef FILESYS
+static bool
+sys_isdir (int fd)
+{
+  struct file *file = thread_fd_get (fd);
+  if (file == NULL)
+    sys_exit (-1);
+
+  return inode_is_dir (file_get_inode (file));
+}
+#endif
+
+#ifdef FILESYS
+static int
+sys_inumber (int fd)
+{
+  struct file *file = thread_fd_get (fd);
+  if (file == NULL)
+    sys_exit (-1);
+
+  return inode_get_inumber (file_get_inode (file));
 }
 #endif
 
