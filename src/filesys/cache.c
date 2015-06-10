@@ -119,6 +119,9 @@ cache_request (disk_sector_t sec_no)
 {
   struct read_ahead_entry *rae;
 
+  if (sec_no >= disk_size (filesys_disk))
+    return;
+
   lock_acquire (&cache_lock);
   if (cache_find (sec_no) != NULL)
     {
