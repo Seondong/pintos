@@ -166,7 +166,11 @@ filesys_remove (const char *name)
 
       /* Current working directory. */
       if (inode == dir_get_inode (thread_current ()->dir))
-        return false;
+        {
+          dir_close (dir);
+          inode_close (inode);
+          return false;
+        }
 
       if (inode_is_dir (inode))
         {
@@ -184,6 +188,7 @@ filesys_remove (const char *name)
         success = dir_remove (dir, filename);
 
       dir_close (dir);
+      inode_close (inode);
     }
   return success;
 }
