@@ -121,6 +121,11 @@ struct thread
     struct list mmap_list;              /* List of memory mapped files. */
 #endif
 
+#ifdef FILESYS
+    /* Owned by filesys/directory.c. */
+    struct dir *dir;                    /* Current directory. */
+#endif
+
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
 

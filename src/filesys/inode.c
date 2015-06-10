@@ -16,6 +16,7 @@
 #define INODE_INDIRECT_BLOCKS 128
 #define INODE_DOUBLE_INDIRECT_BLOCKS 128 * 128
 #define INODE_OFFSET_LENGTH 0
+#define INODE_OFFSET_IS_DIR 8
 
 /* On-disk inode.
    Must be exactly DISK_SECTOR_SIZE bytes long. */
@@ -23,11 +24,12 @@ struct inode_disk
   {
     off_t length;                       /* File size in bytes. */
     size_t sector_count;                /* Number of used disk sectors. */
+    bool is_dir;                        /* This is directory or not. */
     disk_sector_t directs[INODE_DIRECT_BLOCKS];     /* Direct blocks. */
     disk_sector_t indirect;             /* Single indirect block. */
     disk_sector_t double_indirect;      /* Double indirect block. */
     unsigned magic;                     /* Magic number. */
-    uint32_t unused[111];               /* Not used. */
+    uint32_t unused[110];               /* Not used. */
   };
 
 /* Indirect block.
@@ -44,17 +46,6 @@ bytes_to_sectors (off_t size)
 {
   return DIV_ROUND_UP (size, DISK_SECTOR_SIZE);
 }
-
-/* In-memory inode. */
-struct inode
-  {
-    struct list_elem elem;              /* Element in inode list. */
-    disk_sector_t sector;               /* Sector number of disk location. */
-    int open_cnt;                       /* Number of openers. */
-    bool removed;                       /* True if deleted, false otherwise. */
-    int deny_write_cnt;                 /* 0: writes ok, >0: deny writes. */
-    struct lock lock;                   /* Lock for writing data. */
-  };
 
 /* Returns the disk sector that contains byte offset POS within
    INODE.
@@ -253,7 +244,7 @@ inode_extend (struct inode *inode, off_t length)
    Returns true if successful.
    Returns false if memory or disk allocation fails. */
 bool
-inode_create (disk_sector_t sector, off_t length)
+inode_create (disk_sector_t sector, off_t length, bool is_dir)
 {
   struct inode_disk *disk_inode = NULL;
   struct inode *inode;
@@ -270,6 +261,7 @@ inode_create (disk_sector_t sector, off_t length)
     {
       disk_inode->length = 0;
       disk_inode->sector_count = 0;
+      disk_inode->is_dir = is_dir;
       disk_inode->magic = INODE_MAGIC;
 
       cache_write (sector, disk_inode, 0, DISK_SECTOR_SIZE);

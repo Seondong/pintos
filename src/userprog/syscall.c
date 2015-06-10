@@ -19,6 +19,9 @@
 #include "vm/frame.h"
 #include "vm/page.h"
 #endif
+#ifdef FILESYS
+#include "filesys/directory.h"
+#endif
 
 /* Debug flag. */
 #ifndef PRINT_DEBUG
@@ -41,6 +44,10 @@ static void sys_close (int fd);
 #ifdef VM
 static mapid_t sys_mmap (int fd, void *addr);
 static void sys_munmap (mapid_t mapid);
+#endif
+#ifdef FILESYS
+static bool sys_chdir (const char *dir);
+static bool sys_mkdir (const char *dir);
 #endif
 
 static struct file *thread_fd_get (int fd);
@@ -73,6 +80,9 @@ syscall_handler (struct intr_frame *f)
 #ifdef VM
   void *addr;
   mapid_t mapid;
+#endif
+#ifdef FILESYS
+  char *dir;
 #endif
 
   if (!is_user_vaddr ((int *) f->esp))
@@ -178,6 +188,20 @@ syscall_handler (struct intr_frame *f)
       sys_munmap (mapid);
       break;
 #endif
+#ifdef FILESYS
+    case SYS_CHDIR:
+      if (!is_user_vaddr (arg1))
+        sys_exit (-1);
+      dir = *(char **) arg1;
+      f->eax = sys_chdir (dir);
+      break;
+    case SYS_MKDIR:
+      if (!is_user_vaddr (arg1))
+        sys_exit (-1);
+      dir = *(char **) arg1;
+      f->eax = sys_mkdir (dir);
+      break;
+#endif
     }
 }
 
@@ -254,7 +278,7 @@ sys_create (const char *file, unsigned initial_size)
     sys_exit (-1);
 
   filesys_acquire ();
-  success = filesys_create (file, initial_size);
+  success = filesys_create (file, initial_size, false);
   filesys_release ();
   return success;
 }
@@ -558,6 +582,29 @@ sys_munmap (mapid_t mapid)
         }
     }
   frame_release ();
+}
+#endif
+
+#ifdef FILESYS
+static bool
+sys_chdir (const char *dir)
+{
+  struct dir *target_dir = dir_parse (dir);
+  if (target_dir != NULL)
+    {
+      dir_close (thread_current ()->dir);
+      thread_current ()->dir = target_dir;
+      return true;
+    }
+  return false;
+}
+#endif
+
+#ifdef FILESYS
+static bool
+sys_mkdir (const char *dir)
+{
+  return filesys_create (dir, 0, true);
 }
 #endif
 

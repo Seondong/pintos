@@ -5,18 +5,13 @@
 #include "filesys/filesys.h"
 #include "filesys/inode.h"
 #include "threads/malloc.h"
-
-/* A directory. */
-struct dir
-  {
-    struct inode *inode;                /* Backing store. */
-    off_t pos;                          /* Current position. */
-  };
+#include "threads/thread.h"
 
 /* A single directory entry. */
 struct dir_entry
   {
     disk_sector_t inode_sector;         /* Sector number of header. */
+    disk_sector_t parent;               /* Sector number of parent directory. */
     char name[NAME_MAX + 1];            /* Null terminated file name. */
     bool in_use;                        /* In use or free? */
   };
@@ -26,7 +21,7 @@ struct dir_entry
 bool
 dir_create (disk_sector_t sector, size_t entry_cnt)
 {
-  return inode_create (sector, entry_cnt * sizeof (struct dir_entry));
+  return inode_create (sector, entry_cnt * sizeof (struct dir_entry), true);
 }
 
 /* Opens and returns the directory for the given INODE, of which
@@ -172,6 +167,7 @@ dir_add (struct dir *dir, const char *name, disk_sector_t inode_sector)
   e.in_use = true;
   strlcpy (e.name, name, sizeof e.name);
   e.inode_sector = inode_sector;
+  e.parent = dir->inode->sector;
   success = inode_write_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
 
  done:
@@ -233,4 +229,91 @@ dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
         }
     }
   return false;
+}
+
+struct dir *
+dir_parse (const char *dir)
+{
+  char *dir_copy;
+  struct dir *current_dir;
+  char *token, *save_ptr;
+  struct inode *inode;
+
+  dir_copy = malloc (strlen (dir) + 1);
+  strlcpy (dir_copy, dir, strlen (dir) + 1);
+
+  if (dir[0] == '/')
+    current_dir = dir_open_root ();
+  else
+    current_dir = dir_reopen (thread_current ()->dir);
+
+  for (token = strtok_r (dir_copy, "/", &save_ptr); token != NULL;
+       token = strtok_r (NULL, "/", &save_ptr))
+    {
+      if (dir_lookup (current_dir, token, &inode))
+        {
+          dir_close (current_dir);
+          current_dir = dir_open (inode);
+        }
+      else
+        {
+          dir_close (current_dir);
+          return NULL;
+        }
+    }
+  return current_dir;
+}
+
+bool
+dir_path_and_name (const char *dir, char **path, char **name)
+{
+  size_t dir_length = strlen (dir);
+  char *dir_copy;
+  char *separator;
+
+  if (dir_length == 0)
+    return false;
+
+  dir_copy = malloc (dir_length + 1);
+  strlcpy (dir_copy, dir, dir_length + 1);
+
+  /* Trim last '/' from the path DIR. */
+  if (dir_length > 1 && strrchr (dir_copy, '/') == dir_copy + dir_length - 1)
+    {
+      dir_copy[dir_length] = 0;
+      dir_length--;
+    }
+
+  separator = strrchr (dir_copy, '/');
+  if (separator == dir_copy)
+    {
+      *path = malloc (2);
+      (*path)[0] = '/';
+      (*path)[1] = 0;
+
+      *name = malloc (dir_length);
+      strlcpy (*name, dir_copy + 1, dir_length);
+    }
+  else if (separator == NULL)
+    {
+      *path = malloc (1);
+      (*path)[0] = 0;
+
+      *name = malloc (dir_length + 1);
+      strlcpy (*name, dir_copy, dir_length + 1);
+    }
+  else
+    {
+      size_t path_length = separator - dir_copy;
+      size_t name_length = dir_length - path_length;
+
+      *path = malloc (path_length + 1);
+      strlcpy (*path, dir_copy, path_length + 1);
+
+      *name = malloc (name_length + 1);
+      strlcpy (*name, separator + 1, name_length + 1);
+    }
+  free (dir_copy);
+
+  return true;
 }
