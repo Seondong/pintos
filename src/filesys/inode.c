@@ -324,6 +324,16 @@ inode_get_inumber (const struct inode *inode)
   return inode->sector;
 }
 
+/* Returns whether INODE is directory or not. */
+bool
+inode_is_dir (const struct inode *inode)
+{
+  bool is_dir;
+  cache_read (inode->sector, &is_dir, INODE_OFFSET_IS_DIR, sizeof (bool));
+
+  return is_dir;
+}
+
 /* Clear the INODE data. */
 static void
 inode_clear (struct inode *inode)
