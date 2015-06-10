@@ -193,12 +193,8 @@ page_destructor (struct hash_elem *e, void *aux UNUSED)
       if (page->mapid != MAP_FAILED)
         {
           if (pagedir_is_dirty (t->pagedir, page->addr))
-            {
-              filesys_acquire ();
-              file_write_at (page->file, page->addr, page->file_read_bytes,
-                             page->file_ofs);
-              filesys_release ();
-            }
+            file_write_at (page->file, page->addr, page->file_read_bytes,
+                           page->file_ofs);
           list_remove (&page->elem);
         }
       pagedir_clear_page (t->pagedir, page->addr);

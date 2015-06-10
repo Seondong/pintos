@@ -190,7 +190,9 @@ process_exit (void)
 
 #ifdef VM
   frame_acquire ();
+  filesys_acquire ();
   page_destroy (&curr->page_table);
+  filesys_release ();
   frame_release ();
 #endif
 
