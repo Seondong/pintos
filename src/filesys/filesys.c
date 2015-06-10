@@ -121,7 +121,7 @@ filesys_open (const char *name)
 
   if (dir != NULL)
     {
-      if (filename == NULL)
+      if (filename[0] == 0)
         return file_open (dir->inode);
 
       dir_lookup (dir, filename, &inode);

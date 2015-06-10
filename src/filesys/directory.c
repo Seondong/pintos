@@ -296,8 +296,7 @@ dir_path_and_name (const char *dir, char **path, char **name)
     }
   else if (separator == NULL)
     {
-      *path = malloc (1);
-      (*path)[0] = 0;
+      *path = NULL;
 
       *name = malloc (dir_length + 1);
       strlcpy (*name, dir_copy, dir_length + 1);
