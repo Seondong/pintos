@@ -323,6 +323,10 @@ thread_exit (void)
       lock_release (lock);
     }
 
+#ifdef FILESYS
+  dir_close (curr->dir);
+#endif
+
 #ifdef USERPROG
   process_exit ();
 #endif
